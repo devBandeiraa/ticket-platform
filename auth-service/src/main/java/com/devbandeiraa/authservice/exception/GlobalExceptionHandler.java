@@ -37,6 +37,38 @@ public class GlobalExceptionHandler {
                 traceId));
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiError> tratarCredenciaisInvalidas(
+            InvalidCredentialsException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        // O motivo real (e-mail inexistente, senha errada ou conta desabilitada) fica so no log
+        // do servico. A resposta e sempre a mesma, para nao revelar quais e-mails existem.
+        log.warn("[{}] login recusado em {}", traceId, requisicao.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiError.de(
+                HttpStatus.UNAUTHORIZED.value(),
+                "INVALID_CREDENTIALS",
+                excecao.getMessage(),
+                requisicao.getRequestURI(),
+                traceId));
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiError> tratarRefreshTokenInvalido(
+            InvalidRefreshTokenException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.warn("[{}] refresh recusado em {}", traceId, requisicao.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiError.de(
+                HttpStatus.UNAUTHORIZED.value(),
+                "INVALID_REFRESH_TOKEN",
+                excecao.getMessage(),
+                requisicao.getRequestURI(),
+                traceId));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> tratarValidacao(
             MethodArgumentNotValidException excecao, HttpServletRequest requisicao) {
