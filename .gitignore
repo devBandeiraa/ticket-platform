@@ -1,0 +1,58 @@
+### Java / Maven ###
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.jar
+*.war
+*.ear
+*.class
+hs_err_pid*
+replay_pid*
+
+### Node / Frontend ###
+node_modules/
+dist/
+dist-ssr/
+build/
+.vite/
+*.local
+coverage/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### Variaveis de ambiente e segredos ###
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+### Logs ###
+*.log
+logs/
+
+### IDEs ###
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.apt_generated/
+.factorypath
+.springBeans
+.sts4-cache/
+
+### Sistema operacional ###
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Dados locais de containers ###
+docker-data/
+pgdata/
