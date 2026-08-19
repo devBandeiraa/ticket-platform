@@ -1,0 +1,85 @@
+# Infraestrutura local da plataforma de ingressos.
+#
+# Nesta fase o compose sobe apenas as dependencias externas (banco, cache e broker).
+# Os microsservicos ainda rodam na maquina via `mvn spring-boot:run`, apontando para
+# localhost. A conteinerizacao dos servicos entra na Fase 8.
+
+name: ticket-platform
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ticket-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+      # Consumidas pelo script de inicializacao para criar um banco e um usuario
+      # dedicados por servico.
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-authdb}
+      AUTH_DB_USER: ${AUTH_DB_USER:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-auth_pass}
+      EVENT_DB_NAME: ${EVENT_DB_NAME:-eventdb}
+      EVENT_DB_USER: ${EVENT_DB_USER:-event_user}
+      EVENT_DB_PASSWORD: ${EVENT_DB_PASSWORD:-event_pass}
+      BOOKING_DB_NAME: ${BOOKING_DB_NAME:-bookingdb}
+      BOOKING_DB_USER: ${BOOKING_DB_USER:-booking_user}
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:-booking_pass}
+    ports:
+      # Publicado em 5433 no host de proposito: maquinas de desenvolvimento
+      # costumam ter um PostgreSQL nativo ocupando a 5432, e as duas instancias
+      # escutando na mesma porta fazem a aplicacao conectar na errada.
+      # Dentro da rede do compose o Postgres continua em 5432.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Roda apenas na primeira subida, quando o volume ainda esta vazio.
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: ticket-redis
+    restart: unless-stopped
+    # appendonly garante que o estado sobreviva a um restart do container. O lock
+    # distribuido em si e efemero, mas o rate limiting do gateway (Fase 6) agradece.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: ticket-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ticket}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-ticket}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
