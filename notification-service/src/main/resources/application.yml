@@ -1,0 +1,27 @@
+server:
+  port: ${SERVER_PORT:8084}
+
+spring:
+  application:
+    name: notification-service
+
+  # Servico sem banco: consome eventos de reserva e "envia" a notificacao.
+  # Nao ha estado a persistir, entao nao ha datasource nem JPA aqui.
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:ticket}
+    password: ${RABBITMQ_PASSWORD:ticket}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.devbandeiraa.notificationservice: DEBUG
