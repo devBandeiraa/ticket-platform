@@ -25,6 +25,18 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+jwt:
+  # Segredo do HS256, compartilhado com o api-gateway, que valida os tokens sem chamar este
+  # servico. O valor abaixo e apenas para desenvolvimento local: em qualquer ambiente real
+  # defina JWT_SECRET com um valor aleatorio de no minimo 32 bytes.
+  secret: ${JWT_SECRET:desenvolvimento-local-troque-este-segredo-antes-de-publicar}
+  issuer: ticket-platform-auth
+  # Curto porque um access token nao pode ser revogado: a janela de estrago de um token
+  # vazado e o proprio tempo de vida dele.
+  access-token-ttl: 15m
+  # Longo, mas revogavel — fica no banco, e o logout o invalida.
+  refresh-token-ttl: 7d
+
 management:
   endpoints:
     web:
