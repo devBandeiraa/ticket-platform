@@ -1,0 +1,22 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+
+  # As rotas para os servicos downstream e o filtro global de validacao de JWT
+  # entram na Fase 6. Aqui o gateway apenas sobe e responde ao actuator.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.devbandeiraa.apigateway: DEBUG
