@@ -4,17 +4,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Configuracao provisoria de seguranca.
+ * Configuracao de seguranca do auth-service.
  *
- * <p>Assim que o starter do Spring Security entra no classpath, todos os endpoints passam
- * a exigir HTTP Basic com uma senha gerada a cada subida — o que faria {@code /actuator/health}
- * responder 401. Esta classe apenas libera o actuator para o health check da Fase 1.
- *
- * <p>A configuracao real, com autenticacao por JWT e regras por rota, entra na Fase 2 e
- * substitui esta.
+ * <p>O servico e stateless: nao ha sessao nem cookie, e a autenticacao por JWT entra na proxima
+ * entrega. Por ora apenas o cadastro e o actuator sao publicos, e o restante fica bloqueado.
  */
 @Configuration
 public class SecurityConfig {
@@ -22,13 +20,26 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
+                // CSRF protege sessoes baseadas em cookie; numa API stateless consumida por
+                // token ele so atrapalharia, sem acrescentar protecao.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/auth/register").permitAll()
                         .anyRequest().authenticated())
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .build();
+    }
+
+    /**
+     * BCrypt com o custo padrao (2^10). O algoritmo embute o salt no proprio hash, entao nao ha
+     * coluna separada para ele, e o custo pode ser elevado no futuro sem invalidar os hashes ja
+     * gravados — o {@code PasswordEncoder} le o custo de dentro do hash na hora de comparar.
+     */
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 }
