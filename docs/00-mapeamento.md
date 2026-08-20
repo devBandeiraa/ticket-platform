@@ -189,14 +189,25 @@ Legenda: 🌐 público · 🔒 exige JWT · 🔗 interno (não exposto no gatewa
 
 ### `event-service`
 
+Catálogo público e administração vivem em prefixos separados. A autorização vira uma regra única
+de prefixo — `/admin/**` exige `ADMIN` — em vez de uma anotação por método, que depende de alguém
+lembrar de colocá-la. Um endpoint administrativo novo já nasce protegido por morar sob o prefixo.
+
 | Método | Path | Auth | Observação |
 |---|---|---|---|
-| GET | `/events?page=&size=&sort=&search=&from=&to=` | 🌐 | retorna apenas `PUBLISHED`; `Page<EventSummary>` |
-| GET | `/events/{id}` | 🌐 | `EventDetail` |
-| POST | `/events` | 🔒 ADMIN | `201` + header `Location` |
-| PUT | `/events/{id}` | 🔒 ADMIN | |
-| DELETE | `/events/{id}` | 🔒 ADMIN | soft delete → `status = CANCELLED` |
-| GET | `/internal/events/{id}` | 🔗 | consumido pelo `booking-service` |
+| GET | `/events?page=&size=&busca=&de=&ate=` | 🌐 | apenas `PUBLISHED`; ordenado por data; teto de 100 por página |
+| GET | `/events/{id}` | 🌐 | apenas `PUBLISHED`; rascunho devolve `404`, não `403` |
+| GET | `/admin/events?status=&page=&size=` | 🔒 ADMIN | enxerga rascunhos e cancelados |
+| GET | `/admin/events/{id}` | 🔒 ADMIN | qualquer status |
+| POST | `/admin/events` | 🔒 ADMIN | nasce `DRAFT`; `201` + header `Location` |
+| PUT | `/admin/events/{id}` | 🔒 ADMIN | `409` se cancelado |
+| POST | `/admin/events/{id}/publish` | 🔒 ADMIN | `DRAFT` → `PUBLISHED`; idempotente |
+| DELETE | `/admin/events/{id}` | 🔒 ADMIN | exclusão lógica → `status = CANCELLED` |
+| GET | `/internal/events/{id}` | 🔗 | consumido pelo `booking-service` (Fase 4) |
+
+Um evento **nasce como `DRAFT` e só aparece no catálogo por um ato deliberado de publicação**.
+Publicar por acidente, ao salvar um cadastro pela metade, é o tipo de erro que só se percebe
+quando alguém já comprou.
 
 ### `booking-service`
 
