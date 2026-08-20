@@ -113,8 +113,14 @@ O `event-service` **não** registra quantos ingressos foram vendidos — ver dec
 | `event_id` | UUID PK | mesmo id usado no `event-service` |
 | `total_tickets` | int | copiado do `event-service` |
 | `reserved_tickets` | int | default 0 |
-| `version` | int | `@Version`, lock otimista |
+| `price` | numeric(10,2) | copiado do `event-service`; evita uma chamada REST por reserva |
 | `synced_at` | timestamptz | |
+
+> **Ajustado na Fase 4.** A coluna `version` prevista aqui foi removida: o `UPDATE` condicional já
+> testa a invariante no próprio `WHERE`, e um lock otimista sobre ele guardaria a mesma coisa duas
+> vezes — além de que uma query `@Modifying` não incrementa a versão, deixando entidades em memória
+> com valor defasado. Em compensação entrou `price`, para que a reserva não dependa do
+> `event-service` estar no ar.
 
 ```sql
 CHECK (reserved_tickets >= 0 AND reserved_tickets <= total_tickets)
@@ -135,8 +141,26 @@ de aplicação falhe, o banco recusa o estado inválido.
 | `status` | enum `PENDING` \| `CONFIRMED` \| `CANCELLED` \| `EXPIRED` | |
 | `expires_at` | timestamptz | preenchido apenas enquanto `PENDING` |
 | `paid_at` | timestamptz | null até o pagamento simulado |
-| `idempotency_key` | varchar **unique** | impede reserva duplicada em retry |
+| `idempotency_key` | varchar, **unique junto com `user_id`** | impede reserva duplicada em retry |
 | `created_at` / `updated_at` | timestamptz | |
+
+A unicidade é por usuário, e não global: com chave global, bastaria reaproveitar a chave de outro
+para receber a reserva alheia no lugar da sua — idempotência viraria vetor de negação de serviço.
+
+**`outbox_messages`** *(acrescentada na Fase 4)* — eventos a publicar
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `id` | UUID PK | |
+| `aggregate_type` / `aggregate_id` | varchar / UUID | o que gerou o evento; permite achar tudo de uma reserva sem varrer JSON |
+| `type` | varchar | vira a routing key, ex. `booking.confirmed` |
+| `payload` | jsonb | serializado na gravação, congelando o que aconteceu naquele instante |
+| `status` | enum `PENDING` \| `PUBLISHED` \| `FAILED` | |
+| `attempts` / `last_error` | int / text | distinguem broker com problema de mensagem que não passa |
+| `created_at` / `published_at` | timestamptz | |
+
+Gravada na **mesma transação** que confirma a reserva. É o que impede os dois desfechos ruins:
+notificar um pagamento que não aconteceu, ou confirmar um pagamento sem notificar ninguém.
 
 Índices: `(user_id, created_at)`, `(event_id, status)`.
 
@@ -203,7 +227,7 @@ lembrar de colocá-la. Um endpoint administrativo novo já nasce protegido por m
 | PUT | `/admin/events/{id}` | 🔒 ADMIN | `409` se cancelado |
 | POST | `/admin/events/{id}/publish` | 🔒 ADMIN | `DRAFT` → `PUBLISHED`; idempotente |
 | DELETE | `/admin/events/{id}` | 🔒 ADMIN | exclusão lógica → `status = CANCELLED` |
-| GET | `/internal/events/{id}` | 🔗 | consumido pelo `booking-service` (Fase 4) |
+| ~~GET~~ | ~~`/internal/events/{id}`~~ | 🔗 | **Não implementado.** O `booking-service` reusa `GET /events/{id}`: o endpoint público já devolve capacidade e preço e já filtra por publicados, que é exatamente a regra desejada — não se vende ingresso de rascunho. Um endpoint a mais entregaria os mesmos dados sob outra URL |
 
 Um evento **nasce como `DRAFT` e só aparece no catálogo por um ato deliberado de publicação**.
 Publicar por acidente, ao salvar um cadastro pela metade, é o tipo de erro que só se percebe
@@ -219,7 +243,20 @@ quando alguém já comprou.
 | GET | `/bookings/me?page=&size=` | 🔒 USER | reservas do usuário autenticado |
 | GET | `/bookings/{id}` | 🔒 dono ou ADMIN | |
 | GET | `/events/{eventId}/availability` | 🌐 | `{eventId, total, reserved, available}` |
-| GET | `/bookings?eventId=&status=` | 🔒 ADMIN | alimenta o dashboard |
+| GET | `/admin/bookings?eventId=&status=&page=&size=` | 🔒 ADMIN | alimenta o dashboard |
+
+> **Implementado na Fase 4.** A listagem administrativa ficou sob `/admin`, e não em `GET /bookings`
+> como previsto acima, acompanhando a separação já adotada no `event-service` entre `/events` e
+> `/admin/events`. A regra por prefixo protege por construção: um endpoint administrativo novo
+> nasce protegido só por morar ali, enquanto uma exceção para um verbo específico em `/bookings`
+> dependeria de alguém lembrar dela ao adicionar o próximo.
+
+Códigos de negócio devolvidos: `409 SOLD_OUT`, `409 LOCK_TIMEOUT`, `409 BOOKING_EXPIRED`,
+`409 BOOKING_CANCELLED`, `409 BOOKING_ALREADY_CONFIRMED`, `404 EVENT_NOT_AVAILABLE`,
+`404 BOOKING_NOT_FOUND`, `400 INVALID_IDEMPOTENCY_KEY`, `503 EVENT_SERVICE_UNAVAILABLE`.
+
+`POST /bookings` devolve `201` na criação e `200` quando a mesma `Idempotency-Key` é
+reapresentada — um cliente que conte reservas pela contagem de `201` continua contando certo.
 
 ### `notification-service`
 
@@ -261,6 +298,12 @@ O `booking-service` mantém `event_inventory` no próprio banco em vez de pergun
 O custo é consistência eventual na capacidade — aceitável, porque capacidade só muda quando um
 admin edita o evento. A sincronização usa hidratação preguiçosa via REST na primeira reserva de
 cada evento, mais mensagem `event.updated` quando `total_tickets` é alterado.
+
+> **Estado na Fase 4.** A hidratação preguiçosa está implementada; a mensagem `event.updated`
+> **não**. Enquanto não existir, uma alteração de capacidade ou de preço no `event-service` não
+> chega ao `booking-service`, que segue usando os valores hidratados. Fica registrado como lacuna
+> conhecida, a ser fechada quando a mensageria entre serviços for montada — o `event-service`
+> ainda não publica evento algum.
 
 ### Passo a passo
 
@@ -371,8 +414,8 @@ com todos os outros.
 |---|---|---|---|
 | 1 | Lock do Redis expira durante a transação (TTL menor que a duração) → duas threads na seção crítica | Alta | `UPDATE` condicional + `CHECK constraint` garantem a correção mesmo assim; o lock é otimização, não a garantia |
 | 2 | Liberar o lock de outro processo: se o TTL expirou e outro já o adquiriu, um `DEL` cego mata o lock alheio | Alta | Liberação por script Lua com comparação de token (compare-and-delete) |
-| 3 | Redis indisponível → reservas param | Média | Definir política: falhar rápido (`503`) ou degradar para "só banco", que segue correto, apenas mais contencioso |
-| 4 | Reserva confirmada mas `publish` no RabbitMQ falha → notificação perdida silenciosamente | Alta | Transactional outbox ou, no mínimo, publisher confirms com log de falha |
+| 3 | Redis indisponível → reservas param | Média | **Resolvido na Fase 4:** degrada para "só banco". A reserva segue sem lock, correta pelo `UPDATE` condicional, apenas mais contenciosa. Registrado em `WARN` e na métrica `booking.lock.degradacoes` |
+| 4 | Reserva confirmada mas `publish` no RabbitMQ falha → notificação perdida silenciosamente | Alta | **Resolvido na Fase 4:** transactional outbox. O evento é gravado na mesma transação que confirma a reserva; um publicador separado o entrega com retry |
 | 5 | Deriva de estoque entre serviços (mensagem perdida, ou admin reduz capacidade abaixo do já vendido) | Média | Validar no `event-service` que o novo `total_tickets` ≥ vendidos; endpoint admin de reconciliação |
 | 6 | Retry do cliente cria reserva duplicada | Média | `Idempotency-Key` com unique constraint |
 | 7 | Teste de concorrência intermitente — H2 não reproduz o isolamento do PostgreSQL | Média | Testcontainers com Postgres e Redis reais; rodar o teste várias vezes no checkpoint |
@@ -384,6 +427,8 @@ com todos os outros.
 | 13 | Devolução dupla de estoque (job e cancelamento manual simultâneos) | Média | A mudança de status é o guarda: só a transação que alterou a linha decrementa |
 | 14 | HS256: quem valida o token também consegue emitir | Baixa | Aceito conscientemente pelo escopo; documentado como ponto que viraria RS256/JWKS em produção |
 | 15 | Job agendado com múltiplas réplicas executaria a varredura N vezes | Baixa | Sem dano à correção (a transição condicional protege); candidato a ShedLock |
+| 16 | Entidade com id atribuído faz o `save()` do Spring Data virar `merge`, e um `UPDATE` concorrente zera `reserved_tickets` | Alta | **Encontrado pelo teste de concorrência na Fase 4** — vendeu 70 ingressos para um evento de 50. `EventInventory` implementa `Persistable`, forçando `persist` e violação de chave primária em vez de sobrescrita |
+| 17 | `expires_at` devolvido no `201` diverge do mesmo campo lido depois, por o PostgreSQL truncar nanossegundos | Baixa | Instante truncado para microssegundos na criação da reserva |
 
 ---
 
@@ -400,3 +445,10 @@ com todos os outros.
 | Assinatura do JWT | HS256 com segredo compartilhado | Simplicidade; o gateway valida sem chamar o `auth-service`. Limitação conhecida no risco #14 |
 | Status da reserva | Inclui `EXPIRED`, além dos três originais | Distingue desistência do usuário de timeout do sistema — informação que o dashboard usa |
 | Banco do `notification-service` | Nenhum | Não há estado a persistir; um banco vazio seria complexidade sem função |
+| Redis fora do ar na reserva *(Fase 4)* | Degradar para só banco | Recusar com `503` faria do cache um ponto único de falha da operação mais importante do sistema, e contradiria a tese de que a garantia mora no banco |
+| Publicação de `booking.confirmed` *(Fase 4)* | Transactional outbox | Publisher confirms deixaria a reserva `CONFIRMED` sem que ninguém fosse avisado, em silêncio. A outbox custa uma tabela e um job, e é o tipo de solução que o projeto existe para mostrar |
+| Preço na reserva *(Fase 4)* | Copiado para o `event_inventory` na hidratação | Buscá-lo por REST a cada reserva colocaria rede no caminho crítico e faria o `event-service` virar dependência obrigatória para vender |
+| `event_inventory.version` *(Fase 4)* | Removido | O `UPDATE` condicional já testa a invariante no `WHERE`; um lock otimista sobre ele guardaria o mesmo duas vezes, e uma query `@Modifying` sequer incrementaria a versão |
+| Escopo da `Idempotency-Key` *(Fase 4)* | Única por usuário, não global | Chave global permitiria reaproveitar a de outro e receber a reserva alheia, transformando idempotência em negação de serviço |
+| Leitura do evento pelo `booking-service` *(Fase 4)* | Reusa `GET /events/{id}` | O endpoint público já devolve capacidade e preço e já filtra por publicados, que é exatamente a regra desejada. `/internal/events/{id}` não se justificou |
+| Tratadores de erro comuns *(Fase 4)* | Extraídos para o `shared-security` | Regra de três: as duas primeiras cópias ficaram duplicadas de propósito; com o terceiro serviço a duplicação passou a ter custo real |
