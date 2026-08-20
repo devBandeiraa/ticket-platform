@@ -1,0 +1,65 @@
+# notification-service — consome booking.confirmed. Sem banco: nao ha estado a persistir.
+#
+# Uma replica so. Com duas, o RabbitMQ entregaria cada mensagem a uma delas — o que funciona,
+# e a deduplicacao no Redis e justamente o que torna isso seguro. Fica em uma porque nada aqui
+# pede vazao, e um consumidor a mais so gastaria memoria.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: ticket-platform
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: 8084
+      targetPort: 8084
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: ticket-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      initContainers:
+        - name: espera-dependencias
+          image: busybox:1.36
+          command: ["sh", "-c", 'until nc -z rabbitmq 5672 && nc -z redis 6379; do sleep 2; done']
+      containers:
+        - name: notification-service
+          image: ticket-platform-notification-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          env:
+            - name: SERVER_PORT
+              value: "8084"
+            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+              value: "true"
+          envFrom:
+            - configMapRef: { name: plataforma }
+            - secretRef: { name: rabbitmq }
+          startupProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8084 }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8084 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8084 }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 640Mi }

@@ -1,0 +1,93 @@
+# auth-service — cadastro, login e emissao de JWT.
+#
+# Este arquivo carrega os comentarios do padrao seguido pelos cinco servicos Java; os demais
+# so anotam o que fogem dele.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: ticket-platform
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: ticket-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      # O Kubernetes nao tem `depends_on`. A resposta idiomatica seria deixar o pod reiniciar
+      # ate a dependencia subir, mas o CrashLoopBackOff cresce ate 5 minutos entre tentativas —
+      # e uma subida que se resolveria em segundos passa a parecer travada. Um initContainer
+      # que espera pela porta custa poucos milissegundos e deixa a ordem explicita.
+      initContainers:
+        - name: espera-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - 'until nc -z postgres 5432; do echo "aguardando postgres..."; sleep 2; done'
+      containers:
+        - name: auth-service
+          image: ticket-platform-auth-service:latest
+          # Obrigatorio com a tag `latest`: sem isto o Kubernetes assume `Always` e tenta puxar
+          # do Docker Hub uma imagem que so existe localmente, carregada por `kind load`.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SERVER_PORT
+              value: "8081"
+            # O seed do primeiro administrador. Vive num overlay em ambiente de verdade — aqui
+            # e o que permite a plataforma ter admin logo apos subir.
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev"
+            # Habilita /actuator/health/liveness e /readiness, que separam "o processo esta de
+            # pe" de "o processo ja pode receber transito". Sem isso, um unico /health responde
+            # pelas duas perguntas e uma dependencia lenta derruba o pod em vez de so tira-lo
+            # do balanceamento.
+            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+              value: "true"
+          envFrom:
+            - configMapRef:
+                name: plataforma
+            - secretRef:
+                name: jwt
+            # Somente as credenciais do proprio banco. Um Secret unico com as tres senhas seria
+            # mais simples e tornaria o "database per service" uma convencao, e nao um fato:
+            # este pod nao tem como abrir o eventdb nem o bookingdb.
+            - secretRef:
+                name: auth-db
+          # A JVM sobe, o Flyway migra, o contexto do Spring inicializa. Sem startupProbe, a
+          # liveness comecaria a contar durante isso e mataria o pod no meio da migration.
+          startupProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8081 }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8081 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8081 }
+            periodSeconds: 20
+          resources:
+            # request e o que o escalonador reserva; limit e onde o kernel corta. A imagem ja
+            # roda com -XX:MaxRAMPercentage=75, entao o heap acompanha o limit em vez de mirar
+            # a memoria da maquina inteira.
+            requests: { cpu: 100m, memory: 320Mi }
+            limits: { memory: 768Mi }

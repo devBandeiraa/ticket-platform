@@ -1,0 +1,90 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ticket-platform
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - redis.yaml
+  - rabbitmq.yaml
+  - auth-service.yaml
+  - event-service.yaml
+  - booking-service.yaml
+  - notification-service.yaml
+  - api-gateway.yaml
+  - frontend.yaml
+
+configMapGenerator:
+  # Enderecos internos do cluster e nomes de banco. Nada aqui e segredo.
+  - name: plataforma
+    literals:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - AUTH_DB_NAME=authdb
+      - EVENT_DB_NAME=eventdb
+      - BOOKING_DB_NAME=bookingdb
+
+  # O MESMO script que o docker compose monta — por isso ele vive aqui, e nao em docker/.
+  #
+  # O Kustomize so le arquivos no seu proprio diretorio ou abaixo dele, por seguranca. Como
+  # duas copias do script divergiriam no primeiro conserto feito de um lado so, quem se mudou
+  # foi o arquivo: o compose passa a monta-lo deste caminho.
+  - name: postgres-init
+    files:
+      - init-databases.sh
+
+# Secrets separados por dono, e nao um unico com tudo dentro.
+#
+# Um Secret so seria mais curto, mas todo pod que o montasse enxergaria a senha dos tres
+# bancos — e o "database per service" viraria convencao em vez de fato. Assim o pod do
+# auth-service nao tem como abrir o eventdb nem o bookingdb.
+#
+# ATENCAO: os valores abaixo sao de DESENVOLVIMENTO e estao versionados de proposito, para o
+# projeto subir com um comando. Em qualquer ambiente real isto sai daqui — Secret criado fora
+# do git, ou um operador tipo External Secrets / Sealed Secrets.
+secretGenerator:
+  - name: jwt
+    literals:
+      - JWT_SECRET=desenvolvimento-local-troque-este-segredo-antes-de-publicar
+
+  - name: rabbitmq
+    literals:
+      - RABBITMQ_USER=ticket
+      - RABBITMQ_PASSWORD=ticket
+
+  # So o proprio servidor de banco monta este. E o unico lugar com as tres senhas, porque e
+  # ele quem cria os tres usuarios na primeira subida.
+  - name: postgres-bootstrap
+    literals:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - AUTH_DB_USER=auth_user
+      - AUTH_DB_PASSWORD=auth_pass
+      - EVENT_DB_USER=event_user
+      - EVENT_DB_PASSWORD=event_pass
+      - BOOKING_DB_USER=booking_user
+      - BOOKING_DB_PASSWORD=booking_pass
+
+  - name: auth-db
+    literals:
+      - AUTH_DB_USER=auth_user
+      - AUTH_DB_PASSWORD=auth_pass
+
+  - name: event-db
+    literals:
+      - EVENT_DB_USER=event_user
+      - EVENT_DB_PASSWORD=event_pass
+
+  - name: booking-db
+    literals:
+      - BOOKING_DB_USER=booking_user
+      - BOOKING_DB_PASSWORD=booking_pass
+
+# Os geradores acrescentam um sufixo de hash ao nome (plataforma-6t9fgd2k4h). Nao e enfeite:
+# mudar um valor gera um nome novo, o Deployment passa a apontar para outro objeto e o
+# Kubernetes faz rollout sozinho. Com nome fixo, a alteracao ficaria no ConfigMap sem ninguem
+# reiniciar para le-la.

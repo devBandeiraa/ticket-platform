@@ -1,0 +1,67 @@
+# Redis: lock distribuido, rate limiting e deduplicacao de mensagens.
+#
+# Com volume, e nao efemero. Quase tudo que ele guarda aqui e descartavel — locks vivem 3s e
+# os baldes de rate limit se refazem sozinhos —, mas a marca de deduplicacao do
+# notification-service tem TTL de 24h. Perde-la num restart reabriria a janela de notificacao
+# duplicada que a Fase 5 fechou.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: ticket-platform
+spec:
+  clusterIP: None
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: ticket-platform
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: dados
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+  volumeClaimTemplates:
+    - metadata:
+        name: dados
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 512Mi

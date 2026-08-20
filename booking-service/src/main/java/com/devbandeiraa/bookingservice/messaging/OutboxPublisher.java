@@ -9,7 +9,10 @@ import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpConnectException;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.AmqpIOException;
+import org.springframework.amqp.AmqpTimeoutException;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -130,6 +133,26 @@ public class OutboxPublisher {
         falhas.increment();
         String erro = causa.getMessage();
 
+        // Broker inalcancavel nao consome tentativa.
+        //
+        // O orcamento de tentativas existe para mensagem defeituosa — aquela que vai falhar de
+        // novo por mais que se insista. Broker fora do ar e o oposto: nada ha de errado com a
+        // mensagem, e ela voltara a passar assim que a rede voltar.
+        //
+        // Sem esta distincao, o orcamento vira um cronometro: com varredura a cada 2s e limite
+        // de 5, bastavam DEZ SEGUNDOS de indisponibilidade para uma reserva paga perder a
+        // notificacao em definitivo — exatamente o que a outbox existe para impedir. Foi o que
+        // aconteceu na primeira subida em Kubernetes, com uma falha de DNS passageira.
+        //
+        // A mensagem fica PENDING e volta na proxima varredura, indefinidamente. Para uma
+        // outbox isso e a resposta certa: ela e duravel de proposito, e quem precisa saber que
+        // o broker caiu descobre pela metrica de falhas e pelo WARN, nao pela perda do evento.
+        if (ehFalhaDeInfraestrutura(causa)) {
+            log.warn("broker inalcancavel; a mensagem {} continua pendente sem consumir "
+                    + "tentativa: {}", mensagem.getId(), erro);
+            return;
+        }
+
         if (mensagem.getAttempts() + 1 >= propriedades.maxTentativas()) {
             descartadas.increment();
             outboxRepository.desistir(mensagem.getId(), erro);
@@ -145,4 +168,17 @@ public class OutboxPublisher {
         log.warn("falha ao publicar a mensagem {} (tentativa {}): {}. Sera tentada de novo.",
                 mensagem.getId(), mensagem.getAttempts() + 1, erro);
     }
+
+    /**
+     * Distingue "nao consegui falar com o broker" de "o broker recusou esta mensagem".
+     *
+     * <p>As tres excecoes abaixo sao sobre o transporte: host que nao resolve, conexao recusada,
+     * tempo esgotado. Nenhuma delas diz nada sobre o conteudo da mensagem.
+     */
+    private static boolean ehFalhaDeInfraestrutura(AmqpException causa) {
+        return causa instanceof AmqpConnectException
+                || causa instanceof AmqpIOException
+                || causa instanceof AmqpTimeoutException;
+    }
+
 }

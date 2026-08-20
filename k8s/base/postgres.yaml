@@ -1,0 +1,86 @@
+# PostgreSQL: uma instancia, tres bancos.
+#
+# StatefulSet, e nao Deployment. A diferenca que importa aqui nao e o nome estavel do pod, e
+# sim o volume: um Deployment com PVC compartilharia o MESMO volume entre as replicas de um
+# rollout, e por um instante dois processos do Postgres escreveriam no mesmo diretorio de
+# dados. O StatefulSet da a cada replica o seu volume e nunca sobrepoe pods de mesmo indice.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ticket-platform
+spec:
+  # Headless: quem conecta quer o endereco do pod, e nao o balanceamento de um ClusterIP.
+  # Com uma replica da no mesmo, mas declara a intencao — banco nao se balanceia.
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ticket-platform
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            # Este Secret tem as senhas dos TRES bancos, e e o unico que as tem todas. Quem
+            # precisa cria-las e o servidor, na primeira subida; nenhum servico da aplicacao
+            # monta este Secret.
+            - secretRef:
+                name: postgres-bootstrap
+            - configMapRef:
+                name: plataforma
+          volumeMounts:
+            - name: dados
+              mountPath: /var/lib/postgresql/data
+              # Subdiretorio de proposito: o volume do PVC vem com um lost+found na raiz, e o
+              # entrypoint do Postgres recusa inicializar um diretorio que nao esteja vazio.
+              subPath: pgdata
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: dados
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
