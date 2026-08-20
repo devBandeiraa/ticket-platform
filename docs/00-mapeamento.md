@@ -350,6 +350,57 @@ menor.
 **CORS** é resolvido aqui, e não em cada serviço. O navegador só conversa com o gateway, então é o
 único lugar de onde a resposta do preflight pode sair.
 
+### `frontend`
+
+React 19 + TypeScript + Tailwind 4, servido pelo Vite. Consome **apenas** o gateway: nenhuma
+chamada direta a um serviço.
+
+**Telas** *(implementadas na Fase 7)*
+
+| Rota | Acesso | Papel |
+|---|---|---|
+| `/` | 🌐 | Catálogo com busca e paginação |
+| `/eventos/:id` | 🌐 | Detalhe, disponibilidade ao vivo e reserva |
+| `/login`, `/cadastro` | 🌐 | Sessão |
+| `/minhas-reservas` | 🔒 | Contagem regressiva, pagar e cancelar |
+| `/admin/eventos` | 🔒 ADMIN | CRUD, publicar e cancelar |
+| `/admin/reservas` | 🔒 ADMIN | Dashboard com filtros e estoque do evento |
+| `/demo/concorrencia` | 🌐 | Dispara N reservas simultâneas e mostra o resultado |
+
+**A rota protegida não é segurança.** Qualquer pessoa edita o JavaScript da própria aba e alcança
+a tela. A garantia está no backend, onde cada serviço valida o token e confere o papel. O objetivo
+aqui é não oferecer ao usuário um caminho que termina em `403`.
+
+**Sessão.** O access token vive **apenas em memória**; o refresh token, no `localStorage`. Não é
+teatro: um XSS alcança o `localStorage`, então guardar ali o token de acesso entregaria uma
+credencial pronta para uso. O que sobra no disco é um refresh token, e esse o `/auth/logout`
+revoga de verdade — o access token ninguém revoga, e é por isso que ele não deve ficar guardado.
+O custo é recarregar a página perder o access token, resolvido renovando na subida do app.
+
+A renovação em andamento é **compartilhada** entre chamadas simultâneas. Sem isso, uma tela que
+dispara três requisições com o token vencido faria três renovações, e como o `auth-service`
+*rotaciona* o refresh token, a primeira invalidaria o que as outras duas tinham em mãos —
+derrubando a sessão de quem não fez nada de errado.
+
+**Idempotency-Key** é gerada por *intenção de compra*, e fica fixa enquanto a intenção não muda.
+Se a resposta se perder e o usuário clicar de novo, a mesma chave devolve a reserva existente.
+Trocar a quantidade é outra intenção, e ganha chave nova.
+
+**A contagem regressiva recalcula a diferença a cada tick**, em vez de decrementar um contador.
+Com a aba em segundo plano o navegador estrangula os timers, e um contador decrescente atrasaria.
+O zero é apenas visual: quem impede o pagamento de uma reserva vencida é o
+`WHERE expires_at > now()` no banco.
+
+**A demo de concorrência** dispara N reservas com `Promise.allSettled` e classifica as respostas
+por código. É a tese do projeto na tela — o mesmo que o teste de 200 threads do `booking-service`
+verifica, mas visível para quem não vai rodar um teste JUnit. Contabiliza `429` em separado: acima
+da rajada de 40 o rate limiter recusa antes de a requisição chegar ao `booking-service`, e sem
+essa distinção o resultado pareceria dizer algo sobre estoque quando fala do limite da borda.
+
+**Sem proxy do Vite**, de propósito: o frontend chama `http://localhost:8080/api` diretamente, e
+assim o desenvolvimento exercita o CORS configurado no gateway. Um proxy esconderia uma origem mal
+liberada até a primeira publicação.
+
 ### Formato de erro
 
 Resposta uniforme em todos os serviços:
@@ -515,6 +566,20 @@ src/main/java/com/devbandeiraa/apigateway/
 As rotas ficam em `application.yml`, e não em Java. Uma tabela de rotas é configuração, e em YAML
 ela se lê como tabela — predicado, destino e política lado a lado.
 
+O `frontend` segue a mesma ideia de organizar pelo que existe, e não por um molde:
+
+```
+frontend/src/
+├── api/             # contratos, cliente HTTP e um modulo por dominio
+├── auth/            # sessao e guarda de rotas
+├── componentes/     # pecas visuais repetidas e formatacao
+└── paginas/         # uma por rota; admin/ para as restritas
+```
+
+Nomes em português acompanham o resto do projeto — a exceção é `api/tipos.ts`, onde os campos
+mantêm o nome que vem no JSON. Traduzi-los exigiria um mapeamento a cada resposta e criaria dois
+vocabulários para a mesma coisa.
+
 ---
 
 ## 5. Riscos técnicos
@@ -545,6 +610,10 @@ ela se lê como tabela — predicado, destino e política lado a lado.
 | 22 | `X-Forwarded-For` forjado daria um balde de rate limit novo a cada requisição | Média | **Resolvido na Fase 6:** a chave usa o endereço da conexão. Atrás de proxy real, exige declarar `trusted-proxies` — registrado como pendência da Fase 8 |
 | 23 | Uma cópia das regras de autorização no gateway divergiria das dos serviços | Média | **Evitado na Fase 6:** o gateway autentica e não autoriza. Requisição sem token é encaminhada, e quem exige identificação é o serviço |
 | 24 | Limite de 5/min no login atrapalha desenvolvimento e testes manuais | Baixa | Aceito. Todos os valores vêm de variável de ambiente; nos testes automatizados o custo por requisição é ajustado para não depender de espera |
+| 25 | Renovações simultâneas de token derrubam a sessão, porque o refresh é rotacionado | Alta | **Resolvido na Fase 7:** a renovação em andamento é compartilhada entre as chamadas. Coberto por teste que falha se a deduplicação sair |
+| 26 | XSS no frontend alcançaria o access token guardado em disco | Média | **Atenuado na Fase 7:** o access token vive só em memória. O refresh token, que fica no `localStorage`, ao menos é revogável pelo `/auth/logout` |
+| 27 | Clique repetido em "Reservar" criaria duas reservas | Média | **Resolvido na Fase 7:** a `Idempotency-Key` é fixa por intenção de compra, e não por requisição |
+| 28 | A demo de concorrência esbarra no rate limiter e o resultado engana | Média | **Resolvido na Fase 7:** os `429` são contados em separado, com aviso na tela; o limite padrão de rajada é 40 |
 
 ---
 
@@ -578,3 +647,8 @@ ela se lê como tabela — predicado, destino e política lado a lado.
 | Corpo do `429` *(Fase 6)* | Filtro que decora a resposta | O `RequestRateLimiter` encerra a resposta vazia, e recusa por limite não lança exceção — nenhum tratador de erro seria chamado. Decorar a resposta antes de ele agir é o único ponto em que ainda há onde escrever |
 | Bean servlet no `shared-security` *(Fase 6)* | Isolado sob `@ConditionalOnClass` | O `SecurityErrorResponder` implementa interfaces de servlet, e a auto configuração o criaria também no gateway reativo, derrubando-o na subida. A condição precisa estar numa classe aninhada: no método, avaliar o `@Bean` já carregaria o tipo de retorno |
 | CORS *(Fase 6)* | Só no gateway | O navegador só conversa com o gateway. Configurá-lo nos serviços seria manter em três lugares uma regra que nenhum navegador chega a consultar |
+| Guarda do access token *(Fase 7)* | Só em memória | Um XSS alcança o `localStorage`; o access token guardado ali seria uma credencial pronta e **irrevogável**. O refresh token fica em disco porque ao menos é revogável no servidor |
+| Tipos da API no frontend *(Fase 7)* | Cópia manual, não gerada | Mesmo argumento do record duplicado da Fase 5: o contrato é o JSON que atravessa a rede. Gerar do código Java acoplaria o build do frontend ao do backend |
+| Camada de dados *(Fase 7)* | TanStack Query | O que a mão escreveria — cache, invalidação após mutação, estado de carregamento — é justamente onde os bugs sutis moram. Invalidar `disponibilidade` depois de reservar é uma linha, e não um `useEffect` a mais |
+| Endereço da API no desenvolvimento *(Fase 7)* | Gateway direto, sem proxy do Vite | Um proxy tornaria toda chamada same-origin e esconderia uma origem mal liberada no CORS até a primeira publicação |
+| Escopo dos testes do frontend *(Fase 7)* | Cliente HTTP e formatação | É onde há lógica que falha de forma silenciosa e cara. Testar renderização de página verificaria sobretudo o próprio React |
