@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -39,6 +40,15 @@ public class EventInventory {
     @Column(name = "reserved_tickets", nullable = false)
     private int reservedTickets;
 
+    /**
+     * Preco unitario copiado do event-service.
+     *
+     * <p>Mora aqui para que a reserva nao precise de uma chamada REST a cada pedido. Ver a nota
+     * na migration {@code V2}.
+     */
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal price;
+
     @Column(name = "synced_at", nullable = false)
     private Instant syncedAt;
 
@@ -46,16 +56,17 @@ public class EventInventory {
     protected EventInventory() {
     }
 
-    private EventInventory(UUID eventId, int totalTickets) {
+    private EventInventory(UUID eventId, int totalTickets, BigDecimal price) {
         this.eventId = eventId;
         this.totalTickets = totalTickets;
+        this.price = price;
         this.reservedTickets = 0;
         this.syncedAt = Instant.now();
     }
 
-    /** Primeira hidratacao: capacidade copiada do event-service, nada reservado ainda. */
-    public static EventInventory hidratado(UUID eventId, int totalTickets) {
-        return new EventInventory(eventId, totalTickets);
+    /** Primeira hidratacao: capacidade e preco copiados do event-service, nada reservado ainda. */
+    public static EventInventory hidratado(UUID eventId, int totalTickets, BigDecimal price) {
+        return new EventInventory(eventId, totalTickets, price);
     }
 
     public int getDisponivel() {
@@ -72,6 +83,10 @@ public class EventInventory {
 
     public int getReservedTickets() {
         return reservedTickets;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
     }
 
     public Instant getSyncedAt() {

@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
@@ -85,7 +86,12 @@ public class Booking {
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
-        this.expiresAt = expiresAt;
+        // Truncado para microssegundos, que e a precisao de TIMESTAMPTZ no PostgreSQL. Sem isso
+        // o objeto em memoria carrega nanossegundos que o banco arredonda ao gravar, e a reserva
+        // devolvida no 201 sai diferente da mesma reserva lida logo depois — mesmo id, mesmo
+        // registro, campo diferente. Um cliente que guardasse esse instante para comparar com
+        // uma consulta posterior veria uma divergencia que nao existe.
+        this.expiresAt = expiresAt.truncatedTo(ChronoUnit.MICROS);
         this.idempotencyKey = idempotencyKey;
         this.status = BookingStatus.PENDING;
     }

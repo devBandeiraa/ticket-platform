@@ -7,6 +7,7 @@ import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
 import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
 import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -99,7 +100,8 @@ class EstoqueConstraintIntegrationTest {
 
     private UUID estoqueCom(int capacidade) {
         UUID eventoId = UUID.randomUUID();
-        estoqueRepository.saveAndFlush(EventInventory.hidratado(eventoId, capacidade));
+        estoqueRepository.saveAndFlush(
+                EventInventory.hidratado(eventoId, capacidade, new BigDecimal("100.00")));
         return eventoId;
     }
 
