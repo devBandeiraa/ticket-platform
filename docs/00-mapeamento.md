@@ -666,6 +666,9 @@ compose.
 | 30 | JVM ignora o limite de memória do container e é morta por OOM | Média | **Resolvido na Fase 8:** `-XX:MaxRAMPercentage=75`. Sem isso a JVM enxerga a memória da máquina inteira e dimensiona o heap por ela |
 | 31 | Trocar uma porta publicada para fugir de conflito local quebra a comunicação entre containers | Média | **Resolvido na Fase 8:** as portas do host são variáveis distintas das internas, que são fixas |
 | 32 | Segredo ou `target/` da máquina acabando dentro de uma imagem | Média | **Resolvido na Fase 8:** `.dockerignore` na raiz e no frontend; o `.env` está explicitamente excluído |
+| 33 | Orçamento de tentativas da outbox vira cronômetro: 5 tentativas a cada 2s = 10s de broker fora do ar perdem o evento | **Alta** | **Encontrado na Fase 9**, na primeira subida em Kubernetes, por uma falha de DNS passageira — a reserva ficou paga e a notificação virou `FAILED`. Falha de transporte deixou de consumir tentativa; o orçamento agora vale só para mensagem defeituosa |
+| 34 | Probe `httpGet` com `host: 127.0.0.1` aponta para o loopback do **nó**, não do pod | Média | **Encontrado na Fase 9:** a lição do healthcheck do compose não transfere — lá o comando roda dentro do container, aqui quem disca é o kubelet. Sem `host`, o padrão é o IP do pod, que é o correto |
+| 15 *(revisitado)* | Job agendado com múltiplas réplicas executaria a varredura N vezes | Baixa | **Verificado na Fase 9** com duas réplicas reais: a transição condicional protege a expiração, e a publicação duplicada da outbox é absorvida pela deduplicação no consumidor. Uma publicação, uma notificação |
 
 ---
 
@@ -710,3 +713,9 @@ compose.
 | Servidor do frontend *(Fase 8)* | nginx, com o Node só na compilação | O entregável é estático. Manter o Node na imagem final carregaria centenas de megabytes e uma superfície de ataque para servir arquivos |
 | Seed do admin no compose *(Fase 8)* | Profile `dev` ligado por padrão | Este compose *é* o ambiente de desenvolvimento, e sem o seed não há caminho para o primeiro evento existir. Fica em variável para poder ser desligado |
 | Chamada entre serviços *(Fase 8)* | Direta, sem passar pelo gateway | O gateway é a porta de quem vem de fora. Rotear o tráfego interno por ele acrescentaria um salto de rede e um ponto de falha sem oferecer nada em troca |
+| Formato dos manifestos *(Fase 9)* | Kustomize | Já vem no `kubectl`, e o YAML continua legível. Helm entregaria `values.yaml` por ambiente ao custo de esconder os manifestos atrás de templates Go — num projeto que existe para ser lido, é o oposto do que se quer |
+| Escopo dos Secrets *(Fase 9)* | Um por dono | Um Secret único faria todo pod enxergar a senha dos três bancos, e o *database per service* voltaria a ser convenção. Assim o `auth-service` não tem como abrir o `eventdb` |
+| Ordem de subida *(Fase 9)* | `initContainer` esperando a porta | O idiomático seria deixar o pod reiniciar até a dependência subir, mas o `CrashLoopBackOff` cresce até 5 minutos entre tentativas — e uma subida que se resolveria em segundos passa a parecer travada |
+| Réplicas do `booking-service` *(Fase 9)* | Duas, e não por vazão | É o que exercita num cluster real o que o código afirma desde a Fase 4: outbox e job de expiração já eram seguros com concorrência entre instâncias |
+| Falha de transporte na outbox *(Fase 9)* | Não consome tentativa | O orçamento existe para mensagem defeituosa, que falhará de novo por mais que se insista. Broker fora do ar não diz nada sobre a mensagem, e gastar tentativa nisso transformava um limite de robustez num prazo de validade |
+| Persistência do Redis no cluster *(Fase 9)* | Com volume | Quase tudo que ele guarda é descartável — locks de 3s, baldes que se refazem —, mas a marca de deduplicação tem TTL de 24h, e perdê-la num restart reabriria a janela de notificação duplicada que a Fase 5 fechou |
