@@ -155,55 +155,32 @@ o ingresso **voltou ao estoque**.
 ## Arquitetura
 
 ```mermaid
-flowchart TB
-    F["Frontend<br/>React + TypeScript"]
-    G["api-gateway :8080<br/>valida JWT · rate limit · CORS"]
+flowchart LR
+    F["Frontend<br/>React + TS"]
+    G["api-gateway<br/>:8080"]
+    A["auth-service<br/>:8081"]
+    E["event-service<br/>:8082"]
+    B["booking-service<br/>:8083"]
+    Q{{"RabbitMQ"}}
+    N["notification-service<br/>:8084"]
+    R[("Redis")]
 
-    subgraph borda [" "]
-        F -->|"/api/**"| G
-    end
-
-    subgraph servicos ["serviços"]
-        direction LR
-        A["auth-service<br/>:8081"]
-        E["event-service<br/>:8082"]
-        B["booking-service<br/>:8083"]
-        N["notification-service<br/>:8084"]
-    end
-
-    subgraph dados ["dados — um banco por serviço"]
-        direction LR
-        ADB[("authdb")]
-        EDB[("eventdb")]
-        BDB[("bookingdb")]
-    end
-
-    R[("Redis<br/>lock · rate limit · dedup")]
-    Q{{"RabbitMQ<br/>booking.confirmed"}}
-
-    G --> A
+    F -->|"/api/**"| G
+    G -->|JWT validado| A
     G --> E
     G --> B
-
-    A --- ADB
-    E --- EDB
-    B --- BDB
-
     B -->|outbox| Q
-    Q --> N
-
-    G -.- R
-    B -.- R
+    Q -->|booking.confirmed| N
+    B -.->|lock| R
 
     classDef svc fill:#1f3b5c,stroke:#5b9bd5,color:#eaf2fb
-    classDef db fill:#3b2f1e,stroke:#c8963e,color:#f7eddb
+    classDef infra fill:#3b2f1e,stroke:#c8963e,color:#f7eddb
     class F,G,A,E,B,N svc
-    class ADB,EDB,BDB,R,Q db
-
-    style borda fill:none,stroke:none
-    style servicos fill:#12203033,stroke:#33445544
-    style dados fill:#12203033,stroke:#33445544
+    class Q,R infra
 ```
+
+<sub>Cada serviço tem o seu banco — omitidos aqui para o desenho mostrar o caminho da requisição.
+A tabela abaixo lista todos.</sub>
 
 | Serviço | Porta | Banco | Papel |
 |---|---|---|---|
