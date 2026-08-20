@@ -1,0 +1,59 @@
+# Imagem de qualquer um dos cinco servicos Java.
+#
+# Um Dockerfile so, parametrizado por MODULO, e nao cinco quase identicos: o que muda entre
+# eles e apenas qual jar copiar. Cinco copias divergiriam — bastaria alguem corrigir a versao
+# do JRE em quatro delas.
+#
+# Contexto de build: a RAIZ do repositorio, e nao a pasta do servico. E um monorepo Maven, e
+# todo servico depende do modulo shared-security; um contexto restrito a pasta do servico nao
+# alcancaria esse codigo.
+
+# ---------------------------------------------------------------------------
+# Compilacao
+# ---------------------------------------------------------------------------
+# Compila o projeto INTEIRO, e nao apenas `-pl $MODULO -am`.
+#
+# Parece desperdicio, mas e o contrario: como o comando fica identico nas cinco imagens, o
+# Docker reconhece a camada e reaproveita — o Maven roda uma vez e as outras quatro imagens
+# aproveitam o resultado. Compilando por modulo, cada imagem teria um comando diferente,
+# nenhuma camada seria compartilhada e o shared-security seria recompilado cinco vezes.
+FROM maven:3.9-eclipse-temurin-17 AS compilacao
+
+WORKDIR /projeto
+COPY . .
+
+# Cache do ~/.m2 entre builds: sem ele, cada build baixaria o Spring inteiro de novo.
+# Cache mount, e nao camada, porque o repositorio local do Maven nao deve acabar dentro
+# da imagem final.
+#
+# Testes ficam de fora de proposito: os de integracao sobem Testcontainers, o que exigiria
+# um Docker dentro do build. Eles rodam no `./mvnw clean install`, antes de se construir
+# imagem alguma.
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -DskipTests package
+
+# ---------------------------------------------------------------------------
+# Execucao
+# ---------------------------------------------------------------------------
+FROM eclipse-temurin:17-jre-alpine AS execucao
+
+# ARG depois do FROM: um ARG declarado antes nao existe dentro do estagio.
+ARG MODULO
+ARG PORTA=8080
+
+# Usuario sem privilegios. Um processo que so precisa ler o proprio jar e abrir um socket
+# nao tem por que rodar como root — se for comprometido, herda o que o root pode fazer.
+RUN addgroup -S ticket && adduser -S ticket -G ticket
+
+WORKDIR /app
+COPY --from=compilacao /projeto/${MODULO}/target/${MODULO}-*.jar app.jar
+RUN chown ticket:ticket app.jar
+
+USER ticket
+EXPOSE ${PORTA}
+
+# Sem isto a JVM enxerga a memoria da maquina inteira, ignora o limite do container e o
+# kernel a mata por OOM quando ela tenta usar o que acha que tem.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

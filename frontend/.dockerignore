@@ -1,0 +1,12 @@
+# node_modules da maquina jamais entra: a imagem roda `npm ci` e monta o seu, com os
+# binarios certos para Linux. Copiar o do host traria modulos nativos compilados para
+# outro sistema operacional.
+node_modules/
+dist/
+
+.env
+.env.local
+.env.*.local
+
+Dockerfile
+.dockerignore
