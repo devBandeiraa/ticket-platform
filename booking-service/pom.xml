@@ -65,7 +65,27 @@
 			<groupId>org.springframework.amqp</groupId>
 			<artifactId>spring-rabbit-test</artifactId>
 			<scope>test</scope>
-		</dependency>	</dependencies>
+		</dependency>
+
+		<!-- H2 nao serve aqui: o teste central desta fase verifica que o PostgreSQL recusa o
+		     overselling, e isso depende do isolamento e das constraints do banco real. Um
+		     teste de concorrencia que passa em H2 e falha em producao seria pior que nenhum. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
 
 	<build>
 		<plugins>
