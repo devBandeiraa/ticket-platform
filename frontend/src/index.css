@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+
+/*
+  Tema em variaveis, e nao classes repetidas pelas telas: a paleta muda num lugar so.
+  Fundo escuro por escolha — a maior parte das telas mostra numero e status, e o contraste
+  alto ajuda a leitura rapida do painel.
+*/
+@theme {
+  --color-fundo: oklch(0.16 0.015 265);
+  --color-superficie: oklch(0.21 0.018 265);
+  --color-borda: oklch(0.31 0.02 265);
+  --color-texto: oklch(0.95 0.005 265);
+  --color-suave: oklch(0.68 0.015 265);
+
+  --color-marca: oklch(0.68 0.17 255);
+  --color-marca-forte: oklch(0.6 0.19 255);
+
+  --color-ok: oklch(0.72 0.16 155);
+  --color-alerta: oklch(0.78 0.15 85);
+  --color-erro: oklch(0.66 0.19 25);
+}
+
+body {
+  background-color: var(--color-fundo);
+  color: var(--color-texto);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Numeros que mudam sozinhos — contagem regressiva, contadores da demo — nao podem
+   dancar de largura a cada tick. */
+.numerico {
+  font-variant-numeric: tabular-nums;
+}
