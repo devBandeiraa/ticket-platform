@@ -1,0 +1,24 @@
+# Cluster local descartavel, para exercitar os manifestos de verdade.
+#
+#   kind create cluster --config k8s/kind-cluster.yaml
+#   kind delete cluster --name ticket
+#
+# Um no so: a plataforma inteira cabe nele, e nos extras custariam memoria sem provar nada
+# que um unico no nao prove — o que se quer verificar aqui e o desenho dos manifestos, e nao
+# o escalonador do Kubernetes.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ticket
+
+nodes:
+  - role: control-plane
+    # Sem isto, os NodePort so existem dentro do container do no e nada responde no host.
+    # As portas do host sao as mesmas do docker compose de proposito: assim o CORS do gateway
+    # e o VITE_API_URL embutido no frontend continuam valendo, sem reconstruir imagem alguma.
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30173
+        hostPort: 5173
+        protocol: TCP

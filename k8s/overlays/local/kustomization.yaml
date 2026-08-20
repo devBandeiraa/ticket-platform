@@ -1,0 +1,37 @@
+# Overlay local — o que so vale para rodar no kind.
+#
+# A base fica limpa de proposito: nela os Services sao ClusterIP, que e o certo em qualquer
+# cluster com Ingress na frente. Expor por NodePort e uma concessao ao ambiente local, e por
+# isso mora aqui, e nao na base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ticket-platform
+
+resources:
+  - ../../base
+
+patches:
+  # As portas casam com o extraPortMappings do kind-cluster.yaml, que por sua vez repete as
+  # portas do docker compose. E o que faz o CORS do gateway e o VITE_API_URL ja embutido no
+  # frontend continuarem valendo sem reconstruir imagem nenhuma.
+  - target:
+      kind: Service
+      name: api-gateway
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30080
+
+  - target:
+      kind: Service
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30173

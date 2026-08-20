@@ -77,7 +77,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       # Roda apenas na primeira subida, quando o volume ainda esta vazio.
-      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+      #
+      # O script mora em k8s/base porque o Kustomize so le arquivos abaixo do proprio
+      # diretorio, e manter duas copias faria uma divergir da outra. E o mesmo arquivo nos
+      # dois ambientes.
+      - ./k8s/base/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres}"]
       interval: 5s

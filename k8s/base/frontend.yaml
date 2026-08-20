@@ -1,0 +1,57 @@
+# frontend — arquivos estaticos servidos por nginx.
+#
+# Duas replicas custam quase nada: a imagem tem 74 MB e cada pod so entrega arquivo. E o
+# unico componente em que replicar e trivialmente seguro, por nao haver estado nenhum.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: ticket-platform
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: ticket-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ticket-platform-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          # Sem `host`: o padrao e o IP do pod, que e o correto.
+          #
+          # No docker compose este healthcheck precisou de 127.0.0.1 explicito, porque rodava
+          # DENTRO do container, onde `localhost` resolve ::1 antes do IPv4 e o `listen 80` do
+          # nginx so liga IPv4. Aqui a probe e outra coisa: quem disca e o kubelet, a partir do
+          # NO. Preencher `host` com 127.0.0.1 mandaria a chamada para o loopback do no, onde
+          # nao ha nginx nenhum — e a liveness reiniciaria em laco um pod que serve muito bem.
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { memory: 128Mi }
