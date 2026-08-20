@@ -155,38 +155,54 @@ o ingresso **voltou ao estoque**.
 ## Arquitetura
 
 ```mermaid
-flowchart TD
-    F["Frontend<br/>React + TS + Tailwind"]
-    G["api-gateway :8080<br/>valida JWT · rate limit"]
-    A["auth-service :8081"]
-    E["event-service :8082"]
-    B["booking-service :8083"]
-    N["notification-service :8084"]
+flowchart TB
+    F["Frontend<br/>React + TypeScript"]
+    G["api-gateway :8080<br/>valida JWT · rate limit · CORS"]
 
-    ADB[("authdb")]
-    EDB[("eventdb")]
-    BDB[("bookingdb")]
+    subgraph borda [" "]
+        F -->|"/api/**"| G
+    end
+
+    subgraph servicos ["serviços"]
+        direction LR
+        A["auth-service<br/>:8081"]
+        E["event-service<br/>:8082"]
+        B["booking-service<br/>:8083"]
+        N["notification-service<br/>:8084"]
+    end
+
+    subgraph dados ["dados — um banco por serviço"]
+        direction LR
+        ADB[("authdb")]
+        EDB[("eventdb")]
+        BDB[("bookingdb")]
+    end
+
     R[("Redis<br/>lock · rate limit · dedup")]
-    Q{{"RabbitMQ"}}
+    Q{{"RabbitMQ<br/>booking.confirmed"}}
 
-    F -->|/api| G
     G --> A
     G --> E
     G --> B
+
     A --- ADB
     E --- EDB
     B --- BDB
-    B --- R
-    G --- R
+
     B -->|outbox| Q
     Q --> N
-    N --- R
-    B -.->|hidrata estoque| E
 
-    classDef svc fill:#1e3a5f,stroke:#4a90d9,color:#fff
-    classDef infra fill:#3d2b1f,stroke:#c88b3a,color:#fff
+    G -.- R
+    B -.- R
+
+    classDef svc fill:#1f3b5c,stroke:#5b9bd5,color:#eaf2fb
+    classDef db fill:#3b2f1e,stroke:#c8963e,color:#f7eddb
     class F,G,A,E,B,N svc
-    class ADB,EDB,BDB,R,Q infra
+    class ADB,EDB,BDB,R,Q db
+
+    style borda fill:none,stroke:none
+    style servicos fill:#12203033,stroke:#33445544
+    style dados fill:#12203033,stroke:#33445544
 ```
 
 | Serviço | Porta | Banco | Papel |
@@ -204,6 +220,11 @@ inventar um seria complexidade sem função.
 
 `shared-security` é biblioteca, não serviço: validação de JWT e formato de erro, compartilhados
 sem que nenhum serviço dependa de outro em tempo de execução.
+
+Há **uma única chamada síncrona entre serviços**: o `booking-service` consulta o `event-service`
+por REST na primeira reserva de cada evento, para copiar capacidade e preço. Depois disso o
+contador de estoque é local — e é isso que permite decidir a reserva com uma transação só, sem
+commit distribuído.
 
 ---
 
