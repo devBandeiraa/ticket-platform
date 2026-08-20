@@ -36,6 +36,21 @@ spring:
     username: ${RABBITMQ_USER:ticket}
     password: ${RABBITMQ_PASSWORD:ticket}
 
+# Lock distribuido que serializa as tentativas de reserva do mesmo evento.
+#
+# Vale insistir: nenhum destes valores afeta a CORRECAO do sistema. Errar o TTL para menos faz
+# o lock expirar no meio da secao critica; deixar o Redis cair faz o servico seguir sem lock
+# nenhum. Em ambos os casos o UPDATE condicional no banco continua recusando qualquer reserva
+# que estoure a capacidade. O que estes numeros ajustam e o quanto de disputa chega ao banco.
+booking:
+  lock:
+    # Uma ordem de grandeza acima da transacao protegida (um UPDATE e um INSERT).
+    ttl: ${BOOKING_LOCK_TTL:3s}
+    tentativas: ${BOOKING_LOCK_TENTATIVAS:3}
+    # Cresce a cada tentativa e recebe jitter, para as threads que colidiram nao voltarem a
+    # colidir em bloco.
+    espera-entre-tentativas: ${BOOKING_LOCK_ESPERA:50ms}
+
 management:
   endpoints:
     web:
