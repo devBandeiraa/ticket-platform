@@ -13,6 +13,37 @@ spring:
     username: ${RABBITMQ_USER:ticket}
     password: ${RABBITMQ_PASSWORD:ticket}
 
+    listener:
+      simple:
+        # Sem isso, uma mensagem que falha volta para a fila e e reentregue imediatamente, em
+        # laco: o mesmo defeito derrubaria a mensagem de novo, para sempre, consumindo CPU e
+        # impedindo as demais de serem tratadas. Com requeue desligado, a mensagem recusada vai
+        # para o dead-letter exchange configurado na fila.
+        default-requeue-rejected: false
+        retry:
+          # Falha transitoria — Redis oscilando, provedor de e-mail fora do ar por um instante —
+          # costuma passar na segunda tentativa. Falha permanente nao passa nunca, e por isso ha
+          # um teto: depois dele, a mensagem vai para a DLQ ser olhada por uma pessoa.
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
+
+  # Guarda quais mensagens ja foram tratadas. Ver MensagensProcessadas.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+notification:
+  deduplicacao:
+    # Precisa cobrir com folga a janela em que uma reentrega e plausivel: a outbox republica no
+    # ciclo seguinte, e a DLQ pode ser reprocessada manualmente horas depois. Guardar as chaves
+    # por 24h custa pouca memoria e evita notificar duas vezes o mesmo pagamento.
+    ttl: ${NOTIFICATION_DEDUP_TTL:24h}
+
 management:
   endpoints:
     web:

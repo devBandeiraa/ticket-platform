@@ -262,6 +262,32 @@ reapresentada — um cliente que conte reservas pela contagem de `201` continua 
 
 Sem API HTTP de negócio — apenas `/actuator/health`. Comunica-se exclusivamente por RabbitMQ.
 
+**Topologia de filas** *(implementada na Fase 5)*
+
+| Recurso | Nome | Papel |
+|---|---|---|
+| Exchange | `booking.exchange` (topic, durable) | Declarado pelos dois lados; declarar exchange é idempotente no RabbitMQ |
+| Fila | `notification.booking.confirmed` | Ligada por `booking.confirmed`, com dead-letter configurado |
+| DLX | `notification.dlx` (direct, durable) | Uma mensagem que falhou tem destino único; não há roteamento a decidir |
+| DLQ | `notification.booking.confirmed.dlq` | Existe para ser olhada por uma pessoa |
+
+Quem consome declara a própria fila e o próprio binding; o `booking-service` declara apenas o
+exchange. É o que permite um consumidor novo entrar sem exigir mudança no produtor.
+
+**Retentativa:** 3 tentativas com backoff exponencial (1s → 2s → 4s, teto de 10s), e então DLQ.
+`default-requeue-rejected: false` — com requeue ligado, uma mensagem defeituosa voltaria para a
+fila e seria reentregue em laço. Payload malformado vai direto para a DLQ, sem retentar: retentar
+não conserta JSON quebrado.
+
+**Idempotência do consumidor.** A outbox entrega *ao menos uma vez*, então a mesma mensagem pode
+chegar duas vezes. A deduplicação usa `SET NX PX` no Redis sobre o `message-id`, com TTL de 24h.
+Não é em memória porque as duas situações em que duplicatas aparecem — reinício do processo e mais
+de uma réplica na mesma fila — são exatamente aquelas em que um cache local não serve.
+
+A marca é gravada **antes** do envio e **devolvida** se ele falhar. Sem essa devolução, a
+retentativa seria reconhecida como duplicata e descartada, perdendo a notificação justamente
+quando o retry existe para salvá-la.
+
 ### Formato de erro
 
 Resposta uniforme em todos os serviços:
@@ -429,6 +455,8 @@ com todos os outros.
 | 15 | Job agendado com múltiplas réplicas executaria a varredura N vezes | Baixa | Sem dano à correção (a transição condicional protege); candidato a ShedLock |
 | 16 | Entidade com id atribuído faz o `save()` do Spring Data virar `merge`, e um `UPDATE` concorrente zera `reserved_tickets` | Alta | **Encontrado pelo teste de concorrência na Fase 4** — vendeu 70 ingressos para um evento de 50. `EventInventory` implementa `Persistable`, forçando `persist` e violação de chave primária em vez de sobrescrita |
 | 17 | `expires_at` devolvido no `201` diverge do mesmo campo lido depois, por o PostgreSQL truncar nanossegundos | Baixa | Instante truncado para microssegundos na criação da reserva |
+| 18 | Entrega ao menos uma vez da outbox → usuário notificado duas vezes do mesmo pagamento | Média | **Resolvido na Fase 5:** deduplicação por `message-id` no Redis, com a marca devolvida em caso de falha para não atrapalhar a retentativa |
+| 19 | Mensagem defeituosa reentregue em laço travaria a fila e as demais notificações | Média | **Resolvido na Fase 5:** `default-requeue-rejected: false` + DLQ após 3 tentativas; falha de conversão vai direto para a DLQ |
 
 ---
 
@@ -452,3 +480,7 @@ com todos os outros.
 | Escopo da `Idempotency-Key` *(Fase 4)* | Única por usuário, não global | Chave global permitiria reaproveitar a de outro e receber a reserva alheia, transformando idempotência em negação de serviço |
 | Leitura do evento pelo `booking-service` *(Fase 4)* | Reusa `GET /events/{id}` | O endpoint público já devolve capacidade e preço e já filtra por publicados, que é exatamente a regra desejada. `/internal/events/{id}` não se justificou |
 | Tratadores de erro comuns *(Fase 4)* | Extraídos para o `shared-security` | Regra de três: as duas primeiras cópias ficaram duplicadas de propósito; com o terceiro serviço a duplicação passou a ter custo real |
+| Contato do usuário na notificação *(Fase 5)* | Não resolvido: registra o `userId` | A notificação é um log estruturado, então o e-mail não é necessário. Buscá-lo no `auth-service` só para enriquecer uma linha de log seria complexidade sem função — o mesmo argumento que justificou o serviço não ter banco |
+| Duplicatas no consumidor *(Fase 5)* | `SET NX PX` no Redis, TTL de 24h | Fecha do lado do consumidor a janela que a outbox abre. Redis já está no stack, então não é dependência nova; memória não serviria, porque falha no reinício e com múltiplas réplicas |
+| Tipo do evento entre serviços *(Fase 5)* | Record duplicado nos dois lados | O contrato é a mensagem no broker, não uma classe Java. Um tipo compartilhado faria mudar o evento exigir recompilar e reimplantar os dois serviços juntos |
+| Redis fora do ar na deduplicação *(Fase 5)* | Notifica mesmo assim | Mesma postura do lock: entre arriscar uma notificação repetida e não notificar, o dano da primeira é menor. Registrado em `WARN` e em métrica |

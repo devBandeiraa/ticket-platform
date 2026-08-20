@@ -1,0 +1,22 @@
+# Sobreposicoes do perfil de teste.
+#
+# Arquivo de perfil, e nao um application.yml em src/test/resources: um arquivo de mesmo nome no
+# classpath de teste substituiria o principal por inteiro, e o que se quer e ajustar alguns
+# valores mantendo o resto.
+spring:
+  rabbitmq:
+    listener:
+      simple:
+        retry:
+          # Mesmo numero de tentativas de producao, com intervalos curtos. Reduzir as tentativas
+          # faria o teste verificar uma politica diferente da que roda de verdade; encurtar os
+          # intervalos apenas tira a espera.
+          max-attempts: 3
+          initial-interval: 100ms
+          multiplier: 2
+          max-interval: 300ms
+
+notification:
+  deduplicacao:
+    # Curto o bastante para nao vazar entre execucoes, longo o bastante para cobrir um teste.
+    ttl: 30s
