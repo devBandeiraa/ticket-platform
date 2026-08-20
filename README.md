@@ -155,39 +155,32 @@ o ingresso **voltou ao estoque**.
 ## Arquitetura
 
 ```mermaid
-flowchart TD
-    F["Frontend<br/>React + TS + Tailwind"]
-    G["api-gateway :8080<br/>valida JWT · rate limit"]
-    A["auth-service :8081"]
-    E["event-service :8082"]
-    B["booking-service :8083"]
-    N["notification-service :8084"]
-
-    ADB[("authdb")]
-    EDB[("eventdb")]
-    BDB[("bookingdb")]
-    R[("Redis<br/>lock · rate limit · dedup")]
+flowchart LR
+    F["Frontend<br/>React + TS"]
+    G["api-gateway<br/>:8080"]
+    A["auth-service<br/>:8081"]
+    E["event-service<br/>:8082"]
+    B["booking-service<br/>:8083"]
     Q{{"RabbitMQ"}}
+    N["notification-service<br/>:8084"]
+    R[("Redis")]
 
-    F -->|/api| G
-    G --> A
+    F -->|"/api/**"| G
+    G -->|JWT validado| A
     G --> E
     G --> B
-    A --- ADB
-    E --- EDB
-    B --- BDB
-    B --- R
-    G --- R
     B -->|outbox| Q
-    Q --> N
-    N --- R
-    B -.->|hidrata estoque| E
+    Q -->|booking.confirmed| N
+    B -.->|lock| R
 
-    classDef svc fill:#1e3a5f,stroke:#4a90d9,color:#fff
-    classDef infra fill:#3d2b1f,stroke:#c88b3a,color:#fff
+    classDef svc fill:#1f3b5c,stroke:#5b9bd5,color:#eaf2fb
+    classDef infra fill:#3b2f1e,stroke:#c8963e,color:#f7eddb
     class F,G,A,E,B,N svc
-    class ADB,EDB,BDB,R,Q infra
+    class Q,R infra
 ```
+
+<sub>Cada serviço tem o seu banco — omitidos aqui para o desenho mostrar o caminho da requisição.
+A tabela abaixo lista todos.</sub>
 
 | Serviço | Porta | Banco | Papel |
 |---|---|---|---|
@@ -204,6 +197,11 @@ inventar um seria complexidade sem função.
 
 `shared-security` é biblioteca, não serviço: validação de JWT e formato de erro, compartilhados
 sem que nenhum serviço dependa de outro em tempo de execução.
+
+Há **uma única chamada síncrona entre serviços**: o `booking-service` consulta o `event-service`
+por REST na primeira reserva de cada evento, para copiar capacidade e preço. Depois disso o
+contador de estoque é local — e é isso que permite decidir a reserva com uma transação só, sem
+commit distribuído.
 
 ---
 
