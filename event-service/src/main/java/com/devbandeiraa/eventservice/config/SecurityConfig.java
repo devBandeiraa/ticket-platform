@@ -40,6 +40,13 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/**").permitAll()
+                        // Declarado explicitamente, embora o GET publico do catalogo logo abaixo
+                        // ja alcancasse este caminho: a documentacao nao deve depender de uma
+                        // regra vizinha que existe por outro motivo e pode mudar sem aviso.
+                        // Para fecha-la num ambiente publico, use OPENAPI_ENABLED=false, que
+                        // remove os endpoints em vez de apenas protege-los.
+                        .requestMatchers("/events/v3/api-docs/**", "/swagger-ui/**",
+                                "/swagger-ui.html").permitAll()
                         // Catalogo publico: qualquer visitante ve os eventos publicados sem
                         // precisar de conta. Restrito a GET — POST em /events nao existe, e
                         // liberar o verbo aqui abriria a porta caso passasse a existir.

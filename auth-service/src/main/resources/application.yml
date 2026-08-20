@@ -50,6 +50,25 @@ logging:
   level:
     com.devbandeiraa.authservice: DEBUG
 
+springdoc:
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:true}
+    # Caminho prefixado com o proprio recurso, e nao o `/v3/api-docs` padrao. O motivo e o
+    # gateway: ele aplica `StripPrefix=1` a tudo, entao `/api/auth/v3/api-docs` chega aqui
+    # como `/auth/v3/api-docs`. Com o caminho padrao seria preciso uma rota dedicada no
+    # gateway so para a documentacao, com filtros para desfazer o strip; assim a especificacao
+    # viaja pela mesma rota que ja existe para o recurso.
+    path: /auth/v3/api-docs
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:true}
+    # A interface agregada mora no gateway. Esta aqui serve para abrir o servico isolado
+    # durante o desenvolvimento, sem subir a plataforma inteira.
+    path: /swagger-ui.html
+    # Ordena as operacoes pelo verbo em vez da ordem de declaracao no controller, que nao
+    # significa nada para quem le.
+    operationsSorter: method
+    tagsSorter: alpha
+
 ---
 # Perfil de desenvolvimento: acrescenta a pasta db/dev as locations do Flyway,
 # onde vive o seed do primeiro administrador.

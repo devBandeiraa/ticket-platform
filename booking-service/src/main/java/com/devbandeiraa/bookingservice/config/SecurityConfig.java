@@ -35,6 +35,14 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/**").permitAll()
+                        // A documentacao descreve o contrato, nao os dados: cada caminho listado
+                        // nela continua exigindo exatamente o token que ja exigia. Deixa-la atras
+                        // de autenticacao criaria um impasse — o Swagger UI precisa carregar a
+                        // especificacao antes de existir qualquer campo onde colar um token.
+                        // Para fechar a documentacao num ambiente publico, use OPENAPI_ENABLED=false,
+                        // que remove os endpoints em vez de apenas protege-los.
+                        .requestMatchers("/bookings/v3/api-docs/**", "/swagger-ui/**",
+                                "/swagger-ui.html").permitAll()
                         // Disponibilidade e publica, como o catalogo: quem ainda nao tem conta
                         // precisa ver se restam ingressos antes de decidir criar uma. Restrito
                         // a GET — nao existe escrita sob este caminho, e liberar o verbo abriria
