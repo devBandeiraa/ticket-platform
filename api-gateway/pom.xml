@@ -28,6 +28,27 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+
+		<!--
+			Backend do RequestRateLimiter. Precisa ser a variante reativa: o cliente bloqueante
+			pararia a event loop do Netty a cada requisicao, que e exatamente o que o gateway
+			nao pode fazer.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+		</dependency>
+
+		<!--
+			Traz JwtTokenReader, JwtProperties, ApiError e Role. As dependencias de servlet do
+			modulo sao `provided`, entao nao chegam aqui e o gateway continua reativo.
+		-->
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>shared-security</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -36,6 +57,29 @@
 		<dependency>
 			<groupId>io.projectreactor</groupId>
 			<artifactId>reactor-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Redis real nos testes: o rate limiter e um script Lua, e um dublê nao o executaria. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!--
+			Servico downstream de mentira. E o que permite verificar o que o gateway realmente
+			encaminha — caminho apos o StripPrefix e cabecalhos injetados — em vez de apenas o
+			status que ele devolve.
+		-->
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>mockwebserver</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

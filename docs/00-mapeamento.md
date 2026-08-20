@@ -288,6 +288,68 @@ A marca é gravada **antes** do envio e **devolvida** se ele falhar. Sem essa de
 retentativa seria reconhecida como duplicata e descartada, perdendo a notificação justamente
 quando o retry existe para salvá-la.
 
+### `api-gateway`
+
+Não publica API própria. Encaminha para os demais, sob o prefixo `/api`, retirado por
+`StripPrefix=1` — cada serviço continua publicando as rotas que já publicava, e nenhum precisa
+saber que existe um gateway na frente.
+
+**Tabela de rotas** *(implementada na Fase 6)*
+
+A ordem importa: vence a primeira rota cujo predicado casar.
+
+| Ordem | Predicado | Destino |
+|---|---|---|
+| 1 | `/api/auth/login`, `/api/auth/register` | `auth-service` — com balde de limite próprio |
+| 2 | `/api/auth/**` | `auth-service` |
+| 3 | `/api/events/*/availability` | `booking-service` |
+| 4 | `/api/bookings/**` | `booking-service` |
+| 5 | `/api/admin/bookings/**` | `booking-service` |
+| 6 | `/api/admin/events/**` | `event-service` |
+| 7 | `/api/events/**` | `event-service` |
+
+A rota 3 vem antes da 7 de propósito: `/events/{id}/availability` é o único caminho sob `/events`
+que pertence ao `booking-service`, que é quem tem o contador de estoque. Invertida a ordem, o
+`event-service` receberia a chamada e responderia `404`.
+
+**Autentica, mas não autoriza.** O gateway confere *quem* está chamando; *o que* cada um pode
+fazer continua decidido em cada serviço. Replicar aqui as regras de rota criaria uma segunda cópia
+delas, e duas cópias divergem — bastaria adicionar um endpoint administrativo e esquecer de
+espelhar a regra para o gateway liberar o que o serviço julgava protegido.
+
+Por isso requisição **sem token passa**: quem sabe se a rota exige identificação é o destino. Já
+token **inválido para no gateway** com `401 INVALID_TOKEN` — expirado, adulterado ou de outro
+emissor não vira válido em serviço nenhum, e encaminhá-lo só gastaria uma ida à rede.
+
+Os serviços seguem validando o JWT por conta própria. Não é redundância desperdiçada: é o que
+impede que alcançar um serviço diretamente, por dentro da rede, contorne a autenticação.
+
+**Cabeçalhos de identidade.** `X-User-Id`, `X-User-Email` e `X-User-Role` são *sempre* removidos
+da requisição que chega e reescritos pelo gateway a partir do token. Aceitar o valor enviado pelo
+cliente permitiria a qualquer um mandar `X-User-Role: ADMIN` e ser tratado como administrador.
+
+**Rate limiting** — token bucket no Redis, em dois baldes independentes:
+
+| Balde | Chave | Política | Por quê |
+|---|---|---|---|
+| Geral | `userId` se autenticado, senão IP | 20 req/s, rajada de 40 | Contar sempre por IP puniria colegas atrás de um mesmo NAT. Depois do login existe identidade melhor que o endereço de rede |
+| Login e cadastro | sempre IP | 5 por minuto, rajada de 2 | Quem tenta adivinhar senha ainda não tem token; chavear pelo e-mail informado deixaria trocar de alvo a cada tentativa e nunca encostar no limite |
+
+São dois baldes porque o `RedisRateLimiter` monta a chave do Redis a partir do resolvedor, e não
+da rota: dois limites com a mesma chave dividiriam o mesmo balde, e o estreito seria reabastecido
+pela taxa generosa do outro.
+
+O IP vem da conexão, e não de `X-Forwarded-For`, que qualquer cliente pode forjar para ganhar um
+balde novo a cada requisição. Atrás de um proxy real, o certo é declarar
+`spring.cloud.gateway.server.webflux.trusted-proxies` e ler dali.
+
+Com o Redis fora do ar, o `RedisRateLimiter` deixa passar. Mesma postura já adotada no lock e na
+deduplicação: entre parar a plataforma e ficar sem limite por um intervalo, o dano do segundo é
+menor.
+
+**CORS** é resolvido aqui, e não em cada serviço. O navegador só conversa com o gateway, então é o
+único lugar de onde a resposta do preflight pode sair.
+
 ### Formato de erro
 
 Resposta uniforme em todos os serviços:
@@ -305,6 +367,14 @@ Resposta uniforme em todos os serviços:
 
 Códigos de negócio relevantes: `409 SOLD_OUT`, `409 LOCK_TIMEOUT`, `409 BOOKING_EXPIRED`,
 `422 EVENT_NOT_PUBLISHED`.
+
+O gateway responde por conta própria em dois casos — `401 INVALID_TOKEN` e `429
+RATE_LIMIT_EXCEEDED` — e usa o mesmo formato. O `429` exigiu um filtro dedicado: o
+`RequestRateLimiter` recusa definindo o status e encerrando a resposta **vazia**, e o cliente
+receberia um corpo em branco justamente no erro em que precisa explicar algo ao usuário.
+
+O que se compartilha entre servlet e reativo é o contrato — o record `ApiError` —, não o mecanismo
+de escrita, que é necessariamente diferente nos dois modelos.
 
 ---
 
@@ -432,6 +502,19 @@ O `controller` não conhece JPA, o `service` não conhece HTTP, o `repository` n
 de negócio. Só o `booking-service` ganha `client/` e `messaging/`, por ser o único que conversa
 com todos os outros.
 
+O `api-gateway` foge da forma acima, e deve fugir: não tem controller, domínio nem repositório,
+porque não tem negócio próprio. A estrutura acompanha o que ele de fato faz.
+
+```
+src/main/java/com/devbandeiraa/apigateway/
+├── security/        # valida o token e afirma a identidade em cabeçalhos
+├── ratelimit/       # resolvedores de chave dos baldes
+└── web/             # respostas de erro escritas pelo próprio gateway
+```
+
+As rotas ficam em `application.yml`, e não em Java. Uma tabela de rotas é configuração, e em YAML
+ela se lê como tabela — predicado, destino e política lado a lado.
+
 ---
 
 ## 5. Riscos técnicos
@@ -446,7 +529,7 @@ com todos os outros.
 | 6 | Retry do cliente cria reserva duplicada | Média | `Idempotency-Key` com unique constraint |
 | 7 | Teste de concorrência intermitente — H2 não reproduz o isolamento do PostgreSQL | Média | Testcontainers com Postgres e Redis reais; rodar o teste várias vezes no checkpoint |
 | 8 | JWT sem revogação: logout não invalida o access token já emitido | Baixa | TTL curto no access token (15 min) + revogação no refresh token |
-| 9 | Gateway como ponto único de falha e de autenticação | Baixa | Aceito no escopo; vira `replicas: 2` na fase de Kubernetes |
+| 9 | Gateway como ponto único de falha e de autenticação | Baixa | Aceito no escopo; vira `replicas: 2` na fase de Kubernetes. **Atenuado na Fase 6:** cada serviço segue validando o JWT, então o gateway não é a *única* barreira de autenticação — apenas a primeira |
 | 10 | Ordem de subida dos containers: app tenta conectar antes de Postgres/RabbitMQ ficarem prontos | Média | `healthcheck` + `depends_on: condition: service_healthy` |
 | 11 | Listagem pública sem índice degrada com volume | Baixa | Índice `(status, event_date)` + paginação obrigatória |
 | 12 | Corrida entre pagar e expirar: usuário clica "pagar" no instante do job | Média | Transição condicional com `expires_at > now()` no `WHERE`; perde quem chegar depois, de forma determinística |
@@ -457,6 +540,11 @@ com todos os outros.
 | 17 | `expires_at` devolvido no `201` diverge do mesmo campo lido depois, por o PostgreSQL truncar nanossegundos | Baixa | Instante truncado para microssegundos na criação da reserva |
 | 18 | Entrega ao menos uma vez da outbox → usuário notificado duas vezes do mesmo pagamento | Média | **Resolvido na Fase 5:** deduplicação por `message-id` no Redis, com a marca devolvida em caso de falha para não atrapalhar a retentativa |
 | 19 | Mensagem defeituosa reentregue em laço travaria a fila e as demais notificações | Média | **Resolvido na Fase 5:** `default-requeue-rejected: false` + DLQ após 3 tentativas; falha de conversão vai direto para a DLQ |
+| 20 | Cliente envia `X-User-Role: ADMIN` por conta própria e é tratado como administrador | Alta | **Resolvido na Fase 6:** o gateway apaga os três cabeçalhos de identidade de toda requisição que chega, antes de escrever os seus. Coberto por teste, inclusive no caso de token válido somado a cabeçalho forjado |
+| 21 | Rota genérica declarada antes da específica sequestra o tráfego da segunda | Média | **Resolvido na Fase 6:** `/api/events/*/availability` vem antes de `/api/events/**`, com teste que falha se a ordem for invertida — o erro seria um `404` do serviço errado, difícil de atribuir à tabela de rotas |
+| 22 | `X-Forwarded-For` forjado daria um balde de rate limit novo a cada requisição | Média | **Resolvido na Fase 6:** a chave usa o endereço da conexão. Atrás de proxy real, exige declarar `trusted-proxies` — registrado como pendência da Fase 8 |
+| 23 | Uma cópia das regras de autorização no gateway divergiria das dos serviços | Média | **Evitado na Fase 6:** o gateway autentica e não autoriza. Requisição sem token é encaminhada, e quem exige identificação é o serviço |
+| 24 | Limite de 5/min no login atrapalha desenvolvimento e testes manuais | Baixa | Aceito. Todos os valores vêm de variável de ambiente; nos testes automatizados o custo por requisição é ajustado para não depender de espera |
 
 ---
 
@@ -484,3 +572,9 @@ com todos os outros.
 | Duplicatas no consumidor *(Fase 5)* | `SET NX PX` no Redis, TTL de 24h | Fecha do lado do consumidor a janela que a outbox abre. Redis já está no stack, então não é dependência nova; memória não serviria, porque falha no reinício e com múltiplas réplicas |
 | Tipo do evento entre serviços *(Fase 5)* | Record duplicado nos dois lados | O contrato é a mensagem no broker, não uma classe Java. Um tipo compartilhado faria mudar o evento exigir recompilar e reimplantar os dois serviços juntos |
 | Redis fora do ar na deduplicação *(Fase 5)* | Notifica mesmo assim | Mesma postura do lock: entre arriscar uma notificação repetida e não notificar, o dano da primeira é menor. Registrado em `WARN` e em métrica |
+| Papel do gateway *(Fase 6)* | Autentica, não autoriza | Replicar as regras de rota criaria uma segunda cópia delas, e um endpoint novo cujo espelho fosse esquecido ficaria aberto. A validação na borda ainda tem função própria: recusa cedo o que já se sabe inválido e produz a chave do rate limiter |
+| Validação de JWT nos serviços *(Fase 6)* | Mantida, mesmo com o gateway validando | É o que impede que alcançar um serviço por dentro da rede contorne a autenticação. Um gateway cuja única garantia é "ninguém fala com o backend sem passar por mim" transforma qualquer brecha de rede em acesso irrestrito |
+| Chave do rate limiting *(Fase 6)* | Híbrida, com balde estrito no login | Cobre os dois abusos reais e distintos: força bruta de senha, que precisa de IP porque o atacante ainda não tem token, e enxurrada de requisições autenticadas, que precisa de `userId` para não punir quem divide o NAT |
+| Corpo do `429` *(Fase 6)* | Filtro que decora a resposta | O `RequestRateLimiter` encerra a resposta vazia, e recusa por limite não lança exceção — nenhum tratador de erro seria chamado. Decorar a resposta antes de ele agir é o único ponto em que ainda há onde escrever |
+| Bean servlet no `shared-security` *(Fase 6)* | Isolado sob `@ConditionalOnClass` | O `SecurityErrorResponder` implementa interfaces de servlet, e a auto configuração o criaria também no gateway reativo, derrubando-o na subida. A condição precisa estar numa classe aninhada: no método, avaliar o `@Bean` já carregaria o tipo de retorno |
+| CORS *(Fase 6)* | Só no gateway | O navegador só conversa com o gateway. Configurá-lo nos serviços seria manter em três lugares uma regra que nenhum navegador chega a consultar |

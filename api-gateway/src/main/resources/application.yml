@@ -5,14 +5,129 @@ spring:
   application:
     name: api-gateway
 
-  # As rotas para os servicos downstream e o filtro global de validacao de JWT
-  # entram na Fase 6. Aqui o gateway apenas sobe e responde ao actuator.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+
+          # CORS resolvido aqui, e nao em cada servico. O navegador so conversa com o gateway,
+          # entao e o unico lugar de onde a resposta do preflight pode sair — configurar CORS nos
+          # servicos seria manter em tres lugares uma regra que nenhum navegador chega a consultar.
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+                allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
+                allowedHeaders: "*"
+                # O token vai no cabecalho Authorization, nao em cookie. Sem credenciais o
+                # navegador nao anexa cookie algum, o que fecha a porta a CSRF por tabela.
+                allowCredentials: false
+                maxAge: 3600
+
+          default-filters:
+            # Todo o consumo entra por /api. O prefixo existe para o frontend ter um caminho unico
+            # e e retirado aqui, de modo que cada servico continue publicando as rotas que ja
+            # publica — ninguem downstream precisa saber que existe um gateway na frente.
+            - StripPrefix=1
+
+            # Balde geral, valido para todas as rotas. Chaveado por usuario quando ha token e por
+            # IP quando nao ha (ver ChavesDeRateLimit).
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@chaveDeRateLimit}"
+                redis-rate-limiter.replenishRate: ${RATE_LIMIT_POR_SEGUNDO:20}
+                redis-rate-limiter.burstCapacity: ${RATE_LIMIT_RAJADA:40}
+                redis-rate-limiter.requestedTokens: ${RATE_LIMIT_CUSTO:1}
+
+          # A ordem importa: a primeira rota cujo predicado casar vence. As especificas vem antes.
+          routes:
+
+            # --- auth-service ---
+
+            # Login e cadastro somam um segundo balde, bem mais estreito, por cima do geral.
+            # Como sao dois baldes independentes, o menor e o que manda na pratica.
+            #
+            # replenishRate 1 com requestedTokens 12: cada tentativa custa 12 fichas repostas a
+            # uma por segundo, o que da 5 por minuto. burstCapacity 24 permite duas seguidas —
+            # espaco para quem errou a senha e corrigiu, sem espaco para varrer um dicionario.
+            - id: auth-credenciais
+              uri: ${servicos.auth}
+              predicates:
+                - Path=/api/auth/login,/api/auth/register
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@chaveDeLogin}"
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_LOGIN_REPOSICAO:1}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_LOGIN_RAJADA:24}
+                    redis-rate-limiter.requestedTokens: ${RATE_LIMIT_LOGIN_CUSTO:12}
+
+            - id: auth
+              uri: ${servicos.auth}
+              predicates:
+                - Path=/api/auth/**
+
+            # --- booking-service ---
+
+            # Antes da rota do catalogo de proposito: /events/{id}/availability e o unico caminho
+            # sob /events que pertence ao booking-service, que e quem tem o contador de estoque.
+            # Invertida a ordem, o event-service receberia a chamada e responderia 404.
+            - id: booking-disponibilidade
+              uri: ${servicos.booking}
+              predicates:
+                - Path=/api/events/*/availability
+
+            - id: booking
+              uri: ${servicos.booking}
+              predicates:
+                - Path=/api/bookings/**
+
+            - id: booking-admin
+              uri: ${servicos.booking}
+              predicates:
+                - Path=/api/admin/bookings/**
+
+            # --- event-service ---
+
+            - id: event-admin
+              uri: ${servicos.event}
+              predicates:
+                - Path=/api/admin/events/**
+
+            - id: event
+              uri: ${servicos.event}
+              predicates:
+                - Path=/api/events/**
+
+# Enderecos dos servicos de destino, reunidos aqui em vez de repetidos dentro de cada rota.
+# Varias rotas apontam para o mesmo servico, e com o endereco literal em cada uma bastaria
+# esquecer de trocar um deles para o trafego se dividir entre duas instalacoes diferentes.
+servicos:
+  auth: ${AUTH_SERVICE_URI:http://localhost:8081}
+  event: ${EVENT_SERVICE_URI:http://localhost:8082}
+  booking: ${BOOKING_SERVICE_URI:http://localhost:8083}
+
+jwt:
+  # Mesmo segredo do auth-service. E o que permite ao gateway validar o token na borda sem uma
+  # chamada de rede por requisicao — o motivo de o HS256 ter sido escolhido no mapeamento.
+  # Aqui so ha validacao: emitir token continua sendo exclusividade do auth-service.
+  secret: ${JWT_SECRET:desenvolvimento-local-troque-este-segredo-antes-de-publicar}
+  issuer: ticket-platform-auth
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # `gateway` lista as rotas ja resolvidas, o que ajuda a conferir a tabela acima sem ler
+        # este arquivo — mas tambem revela os enderecos internos dos servicos. Por isso vem de
+        # variavel: em ambiente publico, exponha so health e info.
+        include: ${ACTUATOR_ENDPOINTS:health,info,gateway}
   endpoint:
     health:
       show-details: always
