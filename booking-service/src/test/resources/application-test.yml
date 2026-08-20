@@ -1,0 +1,14 @@
+# Sobreposicoes do perfil de teste.
+#
+# Arquivo de perfil, e nao um application.yml em src/test/resources: um arquivo de mesmo nome no
+# classpath de teste substituiria o principal por inteiro, e o que se quer aqui e ajustar dois
+# valores mantendo todo o resto.
+booking:
+  expiracao:
+    # Empurra a primeira varredura para longe o bastante para nunca acontecer durante os testes.
+    # A varredura e verificada chamando o job diretamente, o que a torna deterministica: um job
+    # disparando por conta propria no meio de um teste produziria falhas intermitentes, do tipo
+    # que se costuma "resolver" reexecutando a suite.
+    atraso-inicial: 1000d
+    # Lote pequeno de proposito, para que o teste de paginacao do lote seja barato.
+    tamanho-do-lote: 50

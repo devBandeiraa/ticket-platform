@@ -62,6 +62,15 @@ booking:
     # chegue ao banco e vire erro de integridade em vez de erro de validacao.
     tamanho-maximo-da-chave: 100
 
+  expiracao:
+    # Intervalo entre varreduras, contado a partir do FIM da execucao anterior (fixedDelay).
+    intervalo: ${BOOKING_EXPIRACAO_INTERVALO:60s}
+    # Espera o servico terminar de subir antes da primeira varredura.
+    atraso-inicial: ${BOOKING_EXPIRACAO_ATRASO_INICIAL:30s}
+    # Teto por execucao: se o job ficar horas fora do ar, a primeira passada ao voltar nao deve
+    # tentar processar tudo de uma vez. O que sobrar sai na varredura seguinte.
+    tamanho-do-lote: ${BOOKING_EXPIRACAO_LOTE:200}
+
   event-service:
     url: ${EVENT_SERVICE_URL:http://localhost:8082}
     # Curtos de proposito: esta chamada acontece dentro do pedido de reserva de alguem, e um

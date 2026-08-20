@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Testes do lock contra um Redis real.
@@ -32,6 +33,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  */
 @SpringBootTest
 @Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@ActiveProfiles("test")
 class LockDistribuidoIntegrationTest {
 
     @Autowired

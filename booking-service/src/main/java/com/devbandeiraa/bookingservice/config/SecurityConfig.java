@@ -6,6 +6,7 @@ import com.devbandeiraa.shared.security.Role;
 import com.devbandeiraa.shared.security.SecurityErrorResponder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -34,6 +35,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/**").permitAll()
+                        // Disponibilidade e publica, como o catalogo: quem ainda nao tem conta
+                        // precisa ver se restam ingressos antes de decidir criar uma. Restrito
+                        // a GET — nao existe escrita sob este caminho, e liberar o verbo abriria
+                        // a porta caso passasse a existir.
+                        .requestMatchers(HttpMethod.GET, "/events/*/availability").permitAll()
                         // Regra unica para toda a administracao: um endpoint novo sob este
                         // prefixo ja nasce protegido, sem depender de anotacao por metodo.
                         .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())

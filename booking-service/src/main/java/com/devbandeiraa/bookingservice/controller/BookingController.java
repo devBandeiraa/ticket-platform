@@ -77,4 +77,26 @@ public class BookingController {
 
         return ResponseEntity.ok(bookingService.buscar(id, usuario));
     }
+
+    /**
+     * Pagamento simulado.
+     *
+     * <p>{@code POST} e nao {@code PUT}: pagar nao e substituir o recurso por uma versao nova, e
+     * sim disparar uma transicao que so o servidor sabe se pode acontecer.
+     */
+    @PostMapping("/{id}/pay")
+    public ResponseEntity<BookingResponse> pagar(
+            @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser usuario) {
+
+        return ResponseEntity.ok(bookingService.pagar(id, usuario));
+    }
+
+    /** Cancela a reserva, devolvendo os ingressos ao estoque. */
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelar(
+            @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser usuario) {
+
+        bookingService.cancelar(id, usuario);
+        return ResponseEntity.noContent().build();
+    }
 }

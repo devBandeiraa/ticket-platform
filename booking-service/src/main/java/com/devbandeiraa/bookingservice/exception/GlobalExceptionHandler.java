@@ -91,6 +91,24 @@ public class GlobalExceptionHandler extends ApiExceptionHandlerSupport {
                 excecao.getMessage(), requisicao, traceId);
     }
 
+    /**
+     * A reserva nao estava no estado que a operacao exigia.
+     *
+     * <p>O codigo vem da propria excecao, e nao e fixo: {@code BOOKING_EXPIRED},
+     * {@code BOOKING_CANCELLED} e {@code BOOKING_ALREADY_CONFIRMED} levam o frontend a telas
+     * diferentes, embora todos sejam {@code 409}.
+     */
+    @ExceptionHandler(TransicaoDeReservaInvalidaException.class)
+    public ResponseEntity<ApiError> tratarTransicaoInvalida(
+            TransicaoDeReservaInvalidaException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.info("[{}] {}", traceId, excecao.getMessage());
+
+        return responder(HttpStatus.CONFLICT, excecao.getCodigo(),
+                excecao.getMessage(), requisicao, traceId);
+    }
+
     @ExceptionHandler(ChaveDeIdempotenciaInvalidaException.class)
     public ResponseEntity<ApiError> tratarChaveInvalida(
             ChaveDeIdempotenciaInvalidaException excecao, HttpServletRequest requisicao) {

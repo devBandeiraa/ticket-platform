@@ -1,22 +1,28 @@
 package com.devbandeiraa.bookingservice.service;
 
 import com.devbandeiraa.bookingservice.domain.Booking;
+import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.dto.request.CreateBookingRequest;
 import com.devbandeiraa.bookingservice.dto.response.BookingResponse;
 import com.devbandeiraa.bookingservice.dto.response.PaginaResponse;
 import com.devbandeiraa.bookingservice.exception.ChaveDeIdempotenciaInvalidaException;
 import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
+import com.devbandeiraa.bookingservice.exception.TransicaoDeReservaInvalidaException;
 import com.devbandeiraa.bookingservice.lock.DistributedLock;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSpecifications;
+import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
 import com.devbandeiraa.shared.security.AuthenticatedUser;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,17 +45,20 @@ public class BookingService {
     private static final String PREFIXO_DA_CHAVE_DE_LOCK = "lock:event:";
 
     private final BookingRepository bookingRepository;
+    private final EventInventoryRepository estoqueRepository;
     private final EstoqueService estoqueService;
     private final ReservaTransacional reservaTransacional;
     private final DistributedLock lock;
     private final ReservaProperties propriedades;
 
     public BookingService(BookingRepository bookingRepository,
+                          EventInventoryRepository estoqueRepository,
                           EstoqueService estoqueService,
                           ReservaTransacional reservaTransacional,
                           DistributedLock lock,
                           ReservaProperties propriedades) {
         this.bookingRepository = bookingRepository;
+        this.estoqueRepository = estoqueRepository;
         this.estoqueService = estoqueService;
         this.reservaTransacional = reservaTransacional;
         this.lock = lock;
@@ -132,11 +141,7 @@ public class BookingService {
      */
     @Transactional(readOnly = true)
     public BookingResponse buscar(UUID id, AuthenticatedUser solicitante) {
-        Booking reserva = bookingRepository.findById(id)
-                .filter(encontrada -> solicitante.isAdmin() || encontrada.pertenceA(solicitante.id()))
-                .orElseThrow(() -> new ReservaNaoEncontradaException(id));
-
-        return BookingResponse.de(reserva);
+        return BookingResponse.de(carregarVisivelPara(id, solicitante));
     }
 
     /** Reservas do usuario autenticado, da mais recente para a mais antiga. */
@@ -144,6 +149,152 @@ public class BookingService {
     public PaginaResponse<BookingResponse> listarDoUsuario(UUID usuarioId, Pageable pageable) {
         return PaginaResponse.de(
                 bookingRepository.findByUserId(usuarioId, pageable), BookingResponse::de);
+    }
+
+    /** Listagem administrativa, com filtros opcionais que se combinam. */
+    @Transactional(readOnly = true)
+    public PaginaResponse<BookingResponse> listarParaAdmin(
+            UUID eventId, BookingStatus status, Pageable pageable) {
+
+        Specification<Booking> filtro = Specification.allOf();
+        if (eventId != null) {
+            filtro = filtro.and(BookingSpecifications.doEvento(eventId));
+        }
+        if (status != null) {
+            filtro = filtro.and(BookingSpecifications.comStatus(status));
+        }
+
+        return PaginaResponse.de(bookingRepository.findAll(filtro, pageable), BookingResponse::de);
+    }
+
+    // ---------- transicoes de estado ----------
+
+    /**
+     * Pagamento simulado: {@code PENDING} para {@code CONFIRMED}.
+     *
+     * <p>A transicao inteira acontece dentro do {@code UPDATE} condicional, que exige status
+     * pendente <em>e</em> prazo ainda valido. E isso que resolve a corrida com o job de
+     * expiracao: se o job chegar primeiro, o pagamento afeta zero linhas; se o pagamento chegar
+     * primeiro, o job e que nao encontra mais a reserva pendente. Nunca os dois.
+     *
+     * <p>Pagar o que ja esta pago nao e erro — devolve a mesma reserva. Um duplo clique no botao
+     * de pagamento nao deve produzir uma tela de falha para uma operacao que deu certo.
+     */
+    @Transactional
+    public BookingResponse pagar(UUID id, AuthenticatedUser solicitante) {
+        Booking reserva = carregarVisivelPara(id, solicitante);
+        Instant agora = Instant.now().truncatedTo(ChronoUnit.MICROS);
+
+        if (bookingRepository.confirmar(id, agora) == 0) {
+            return recusarPagamento(id);
+        }
+
+        log.info("reserva paga: id={} usuario={}", id, reserva.getUserId());
+        return BookingResponse.de(recarregar(id));
+    }
+
+    /**
+     * Cancelamento pedido pelo usuario, devolvendo o estoque.
+     *
+     * <p>A devolucao so acontece se o {@code UPDATE} tiver afetado uma linha. Como apenas uma
+     * chamada consegue tirar a reserva de {@code PENDING}, o estoque volta exatamente uma vez,
+     * mesmo que o usuario clique duas vezes ou que o job de expiracao esteja rodando junto.
+     */
+    @Transactional
+    public void cancelar(UUID id, AuthenticatedUser solicitante) {
+        Booking reserva = carregarVisivelPara(id, solicitante);
+
+        if (bookingRepository.cancelar(id) == 0) {
+            recusarCancelamento(id);
+            return;
+        }
+
+        estoqueRepository.devolver(reserva.getEventId(), reserva.getQuantity());
+        log.info("reserva cancelada: id={} evento={} quantidade={} (estoque devolvido)",
+                id, reserva.getEventId(), reserva.getQuantity());
+    }
+
+    /**
+     * Expira uma reserva vencida, devolvendo o estoque.
+     *
+     * <p>Chamada pelo job, uma reserva por transacao. Em lote unico, uma unica reserva
+     * problematica desfaria o trabalho de todas as outras a cada rodada — e, como a varredura e
+     * ordenada por vencimento, a mesma reserva voltaria a bloquear a proxima passada
+     * indefinidamente.
+     *
+     * @return {@code true} se esta chamada foi a que expirou a reserva
+     */
+    @Transactional
+    public boolean expirar(Booking reserva) {
+        if (bookingRepository.expirar(reserva.getId()) == 0) {
+            // Alguem pagou ou cancelou entre a varredura e este UPDATE. Nao ha o que fazer, e
+            // sobretudo nao ha estoque a devolver: quem fez a transicao ja cuidou disso.
+            return false;
+        }
+
+        estoqueRepository.devolver(reserva.getEventId(), reserva.getQuantity());
+        log.info("reserva expirada: id={} evento={} quantidade={} (estoque devolvido)",
+                reserva.getId(), reserva.getEventId(), reserva.getQuantity());
+
+        return true;
+    }
+
+    // ---------- apoio ----------
+
+    /**
+     * Explica por que o pagamento nao passou, consultando o estado que o banco encontrou.
+     *
+     * <p>Devolver um {@code 409} generico bastaria para a corretude, mas nao para o frontend:
+     * "expirou" pede um botao de reservar de novo, "cancelada" pede uma explicacao, e "ja paga"
+     * pede o comprovante.
+     */
+    private BookingResponse recusarPagamento(UUID id) {
+        Booking atual = recarregar(id);
+
+        if (atual.getStatus() == BookingStatus.CONFIRMED) {
+            log.debug("pagamento repetido da reserva {}: ja estava confirmada", id);
+            return BookingResponse.de(atual);
+        }
+
+        throw switch (atual.getStatus()) {
+            case CANCELLED -> new TransicaoDeReservaInvalidaException(
+                    id, "BOOKING_CANCELLED", "a reserva foi cancelada e nao pode ser paga");
+            // PENDING aqui significa que o prazo venceu mas o job ainda nao passou. Do ponto de
+            // vista do usuario o desfecho e o mesmo de EXPIRED, e a resposta tambem deve ser.
+            default -> new TransicaoDeReservaInvalidaException(
+                    id, "BOOKING_EXPIRED", "o prazo de pagamento venceu");
+        };
+    }
+
+    private void recusarCancelamento(UUID id) {
+        Booking atual = recarregar(id);
+
+        if (atual.getStatus() == BookingStatus.CANCELLED) {
+            log.debug("cancelamento repetido da reserva {}: ja estava cancelada", id);
+            return;
+        }
+
+        throw switch (atual.getStatus()) {
+            // Cancelar uma reserva ja paga seria estorno, que envolve devolver dinheiro e nao
+            // apenas estoque. Esta fora do escopo do pagamento simulado.
+            case CONFIRMED -> new TransicaoDeReservaInvalidaException(
+                    id, "BOOKING_ALREADY_CONFIRMED",
+                    "a reserva ja foi paga; cancelamento apos o pagamento exige estorno");
+            default -> new TransicaoDeReservaInvalidaException(
+                    id, "BOOKING_EXPIRED", "a reserva ja havia expirado");
+        };
+    }
+
+    /** Um admin enxerga qualquer reserva; um usuario comum, apenas as suas. */
+    private Booking carregarVisivelPara(UUID id, AuthenticatedUser solicitante) {
+        return bookingRepository.findById(id)
+                .filter(reserva -> solicitante.isAdmin() || reserva.pertenceA(solicitante.id()))
+                .orElseThrow(() -> new ReservaNaoEncontradaException(id));
+    }
+
+    private Booking recarregar(UUID id) {
+        return bookingRepository.findById(id)
+                .orElseThrow(() -> new ReservaNaoEncontradaException(id));
     }
 
     /**

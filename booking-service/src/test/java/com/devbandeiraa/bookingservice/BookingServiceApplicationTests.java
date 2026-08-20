@@ -5,6 +5,7 @@ import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Teste de fumaca: garante que o contexto sobe por inteiro, com o datasource conectado e as
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootTest
 @Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@ActiveProfiles("test")
 class BookingServiceApplicationTests {
 
     @Test
