@@ -11,7 +11,7 @@
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-4-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)](#)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](#)
 [![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](#)
-[![Testes](https://img.shields.io/badge/testes-200-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-201-success?style=flat-square)](#testes)
 
 </div>
 
@@ -54,6 +54,10 @@ Nove containers sobem: PostgreSQL, Redis, RabbitMQ, cinco serviços e o frontend
 Depois disso → **http://localhost:5173** · admin: `admin@ticket.dev` / `admin@ticket.dev123`
 
 Nenhum `.env` é necessário. Todo valor tem padrão.
+
+Prefere ver em Kubernetes? Os manifestos estão em [`k8s/`](k8s/) — Kustomize, num cluster `kind`
+descartável, com o `booking-service` em duas réplicas. O passo a passo está no
+[`k8s/README.md`](k8s/README.md).
 
 ---
 
@@ -222,7 +226,7 @@ commit distribuído.
 
 ## Testes
 
-**200 no total** — 182 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**201 no total** — 183 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 18 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -234,6 +238,7 @@ banco em memória não o reproduz.
 | `ConsumoDeConfirmacaoIntegrationTest` | Duplicata descartada, retry vence falha transitória, DLQ recebe a permanente |
 | `RateLimitIntegrationTest` | Os dois baldes são independentes, e o `429` sai no formato de erro da API |
 | `cliente.test.ts` | Renovação de token compartilhada entre chamadas simultâneas |
+| `OutboxIntegrationTest` *(broker inalcançável)* | Broker fora do ar não consome o orçamento de tentativas — bug encontrado ao subir em Kubernetes |
 
 ```bash
 ./mvnw clean install          # backend — exige Docker, para os Testcontainers
@@ -261,7 +266,9 @@ Escolhas de escopo, não descuidos. Todas estão registradas com justificativa e
 - **Sem tracing distribuído.** Há `traceId` por resposta e métricas via Micrometer, mas não um
   Jaeger ligando os saltos.
 - **Sem CI.** Os testes rodam localmente; um workflow de GitHub Actions é o próximo passo natural.
-- **Kubernetes pendente.** Última fase planejada, ainda não feita.
+- **Kubernetes só em cluster local.** Um nó, `NodePort` em vez de Ingress, sem HPA e com os
+  Secrets versionados para o projeto subir com um comando. As três coisas mudam em ambiente real,
+  e o [`k8s/README.md`](k8s/README.md) diz como.
 
 ---
 
