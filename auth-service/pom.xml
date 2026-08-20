@@ -40,6 +40,15 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<!-- Validacao de JWT, papeis e formato de erro compartilhados com os demais
+		     servicos. Traz o jjwt junto, mas a api fica declarada explicitamente abaixo
+		     porque este servico e o unico que tambem *emite* tokens. -->
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>shared-security</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
 		<!-- jjwt: api em compile, impl e jackson apenas em runtime, para que o
 		     codigo da aplicacao so consiga usar a API publica da biblioteca. -->
 		<dependency>

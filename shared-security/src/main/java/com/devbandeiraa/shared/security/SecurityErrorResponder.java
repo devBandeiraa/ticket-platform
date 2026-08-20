@@ -1,6 +1,5 @@
-package com.devbandeiraa.authservice.security;
+package com.devbandeiraa.shared.security;
 
-import com.devbandeiraa.authservice.exception.ApiError;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -11,24 +10,22 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.stereotype.Component;
 
 /**
  * Faz as falhas de seguranca responderem no mesmo formato {@link ApiError} do resto da API.
  *
- * <p>Sem isto o Spring Security devolveria uma pagina de erro padrao do container, com corpo
+ * <p>Sem isto o Spring Security devolveria a pagina de erro padrao do container, com corpo
  * diferente de todos os outros erros — e o cliente teria que tratar dois formatos.
  *
- * <p>Resolve tambem o comportamento herdado da entrega anterior: sem um
- * {@link AuthenticationEntryPoint}, uma requisicao sem token recebia 403 em vez de 401. A
- * distincao importa: 401 diz "identifique-se", 403 diz "eu sei quem voce e, e voce nao pode".
+ * <p>A distincao entre os dois metodos importa: 401 diz "identifique-se", 403 diz "eu sei quem
+ * voce e, e voce nao pode". Sem um {@link AuthenticationEntryPoint} configurado, uma requisicao
+ * sem token recebe 403, o que induz o cliente a erro.
  */
-@Component
-public class RespostaDeErroDeSeguranca implements AuthenticationEntryPoint, AccessDeniedHandler {
+public class SecurityErrorResponder implements AuthenticationEntryPoint, AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
 
-    public RespostaDeErroDeSeguranca(ObjectMapper objectMapper) {
+    public SecurityErrorResponder(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

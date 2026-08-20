@@ -1,4 +1,4 @@
-package com.devbandeiraa.authservice.security;
+package com.devbandeiraa.shared.security;
 
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -18,20 +18,20 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Le o access token do cabecalho Authorization e popula o contexto de seguranca.
  *
- * <p>Nao e um {@code @Component} de proposito: o Spring Boot registra automaticamente qualquer
- * bean do tipo {@code Filter} no container de servlets, e o filtro acabaria executando duas
- * vezes — uma pelo container e outra pela cadeia do Spring Security. Ele e instanciado
- * diretamente na {@code SecurityConfig}.
+ * <p>Nao e declarado como bean de proposito: o Spring Boot registra automaticamente qualquer bean
+ * do tipo {@code Filter} no container de servlets, e o filtro executaria duas vezes — uma pelo
+ * container e outra pela cadeia do Spring Security. Cada servico o instancia na propria
+ * {@code SecurityConfig}, que e onde as regras de rota tambem sao decididas.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private static final String PREFIXO_BEARER = "Bearer ";
 
-    private final JwtService jwtService;
+    private final JwtTokenReader jwtTokenReader;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
-        this.jwtService = jwtService;
+    public JwtAuthenticationFilter(JwtTokenReader jwtTokenReader) {
+        this.jwtTokenReader = jwtTokenReader;
     }
 
     @Override
@@ -43,7 +43,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (cabecalho != null && cabecalho.startsWith(PREFIXO_BEARER)) {
             try {
-                AuthenticatedUser usuario = jwtService.extrairUsuario(cabecalho.substring(PREFIXO_BEARER.length()));
+                AuthenticatedUser usuario =
+                        jwtTokenReader.extrairUsuario(cabecalho.substring(PREFIXO_BEARER.length()));
                 SecurityContextHolder.getContext().setAuthentication(construirAutenticacao(usuario));
 
             } catch (JwtException | IllegalArgumentException excecao) {

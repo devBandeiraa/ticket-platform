@@ -1,12 +1,15 @@
-package com.devbandeiraa.authservice.exception;
+package com.devbandeiraa.shared.security;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.util.Map;
 
 /**
- * Corpo unico de erro da API, no formato acordado em {@code docs/00-mapeamento.md} e usado por
- * todos os servicos da plataforma.
+ * Corpo unico de erro da API, no formato acordado em {@code docs/00-mapeamento.md}.
+ *
+ * <p>Compartilhado entre os servicos por um motivo pratico: o frontend trata uma unica forma de
+ * erro, venha ela do auth-service, do event-service ou do gateway. Se cada servico definisse o
+ * proprio formato, o cliente precisaria de um tratamento por origem.
  *
  * @param error   codigo estavel e legivel por maquina (ex: {@code EMAIL_ALREADY_REGISTERED}),
  *                para o frontend decidir o que fazer sem depender do texto da mensagem

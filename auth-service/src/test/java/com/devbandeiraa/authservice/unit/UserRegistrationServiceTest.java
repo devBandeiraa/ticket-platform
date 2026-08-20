@@ -7,7 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.devbandeiraa.authservice.domain.Role;
+import com.devbandeiraa.shared.security.Role;
 import com.devbandeiraa.authservice.domain.User;
 import com.devbandeiraa.authservice.dto.request.RegisterRequest;
 import com.devbandeiraa.authservice.exception.EmailAlreadyRegisteredException;
