@@ -18,16 +18,93 @@
   --color-ok: oklch(0.72 0.16 155);
   --color-alerta: oklch(0.78 0.15 85);
   --color-erro: oklch(0.66 0.19 25);
+
+  /* Superficie translucida das telas que ficam sobre o ceu estrelado. O fundo precisa
+     aparecer por tras do cartao, ou o ceu vira uma moldura em volta de caixas opacas. */
+  --color-superficie-vidro: oklch(0.21 0.018 265 / 0.72);
+  --color-borda-clara: oklch(0.38 0.025 265 / 0.7);
+
+  --animate-subir: subir 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-surgir: surgir 0.3s ease-out both;
+  --animate-pulsar-marca: pulsar-marca 2.4s ease-in-out infinite;
+}
+
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes surgir {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulsar-marca {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-marca) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 10px transparent;
+  }
 }
 
 body {
   background-color: var(--color-fundo);
   color: var(--color-texto);
   font-family: ui-sans-serif, system-ui, sans-serif;
+  /* O ceu e desenhado num canvas `fixed`; sem isto, rolar a pagina revela o fundo do body
+     por baixo dele nas bordas do overscroll. */
+  overscroll-behavior: none;
 }
 
 /* Numeros que mudam sozinhos — contagem regressiva, contadores da demo — nao podem
    dancar de largura a cada tick. */
 .numerico {
   font-variant-numeric: tabular-nums;
+}
+
+/* O canvas tem a resolucao do viewport em pixels CSS. Numa tela de alta densidade o
+   navegador o amplia e suaviza, e o quadrado de 5px vira um borrao. `pixelated` manda
+   repetir o pixel em vez de interpolar, que e o ponto inteiro de arte em pixel. */
+.pixelado {
+  image-rendering: pixelated;
+}
+
+/* Escurece o ceu na faixa central, onde o conteudo vive. Sem isto, texto pequeno sobre uma
+   estrela clara perde contraste — e contraste aqui nao e gosto, e legibilidade. */
+.ceu-mascarado {
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, black 0%, black 35%, transparent 78%);
+}
+
+/* Cartao de vidro: deixa o ceu passar sem entregar o conteudo ao ruido do fundo. */
+.vidro {
+  background-color: var(--color-superficie-vidro);
+  backdrop-filter: blur(12px);
+}
+
+/*
+  Quem pediu menos movimento no sistema recebe a interface parada. Regra unica no fim da
+  folha para vencer por especificidade e ordem, em vez de repetir a condicao em cada
+  animacao — uma que escapasse anularia a intencao inteira.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
