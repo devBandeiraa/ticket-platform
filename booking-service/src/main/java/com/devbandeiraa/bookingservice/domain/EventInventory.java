@@ -3,11 +3,15 @@ package com.devbandeiraa.bookingservice.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 /**
  * Espelho local do estoque de um evento.
@@ -24,7 +28,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "event_inventory")
-public class EventInventory {
+public class EventInventory implements Persistable<UUID> {
 
     /**
      * O id vem do event-service, e nao e gerado aqui: a linha de estoque e o mesmo evento,
@@ -52,6 +56,27 @@ public class EventInventory {
     @Column(name = "synced_at", nullable = false)
     private Instant syncedAt;
 
+    /**
+     * Marca uma instancia recem-construida, que ainda nao existe no banco.
+     *
+     * <p>Sem isto o Spring Data decide entre inserir e atualizar olhando se o id e nulo. Como o
+     * id desta entidade vem pronto do event-service, ele nunca e nulo, e o {@code save()}
+     * executaria um <em>merge</em>: o Hibernate consultaria a linha e, achando-a, faria
+     * {@code UPDATE}.
+     *
+     * <p>O efeito sob concorrencia e destrutivo e nada obvio. Varias requisicoes podem tentar
+     * hidratar o mesmo evento ao mesmo tempo; a primeira insere e as demais, ao "salvar",
+     * atualizariam a linha ja existente <strong>zerando reserved_tickets</strong> — apagando
+     * reservas ja contabilizadas e liberando estoque que nao existe mais. Foi assim que o teste
+     * de concorrencia chegou a vender 70 ingressos para um evento de 50.
+     *
+     * <p>Com {@code isNew()} devolvendo verdadeiro, o {@code save()} faz {@code persist()}, e a
+     * segunda requisicao esbarra na chave primaria em vez de sobrescrever. A violacao e tratada
+     * em {@code EstoqueService}, que apenas le a linha que a vencedora gravou.
+     */
+    @Transient
+    private boolean novo;
+
     /** Exigido pelo JPA. Nao usar diretamente. */
     protected EventInventory() {
     }
@@ -62,6 +87,24 @@ public class EventInventory {
         this.price = price;
         this.reservedTickets = 0;
         this.syncedAt = Instant.now();
+        this.novo = true;
+    }
+
+    @Override
+    public UUID getId() {
+        return eventId;
+    }
+
+    @Override
+    public boolean isNew() {
+        return novo;
+    }
+
+    /** Depois de gravada ou carregada, a linha existe: qualquer save seguinte e atualizacao. */
+    @PostPersist
+    @PostLoad
+    void marcarComoExistente() {
+        this.novo = false;
     }
 
     /** Primeira hidratacao: capacidade e preco copiados do event-service, nada reservado ainda. */
