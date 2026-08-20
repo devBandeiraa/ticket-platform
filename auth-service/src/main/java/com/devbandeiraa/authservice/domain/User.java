@@ -1,5 +1,6 @@
 package com.devbandeiraa.authservice.domain;
 
+import com.devbandeiraa.shared.security.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

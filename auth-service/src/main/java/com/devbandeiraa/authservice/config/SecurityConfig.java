@@ -1,9 +1,9 @@
 package com.devbandeiraa.authservice.config;
 
-import com.devbandeiraa.authservice.security.JwtAuthenticationFilter;
-import com.devbandeiraa.authservice.security.JwtProperties;
-import com.devbandeiraa.authservice.security.JwtService;
-import com.devbandeiraa.authservice.security.RespostaDeErroDeSeguranca;
+import com.devbandeiraa.authservice.security.TokenLifetimeProperties;
+import com.devbandeiraa.shared.security.JwtAuthenticationFilter;
+import com.devbandeiraa.shared.security.JwtTokenReader;
+import com.devbandeiraa.shared.security.SecurityErrorResponder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,14 +21,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * inteiramente do access token.
  */
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties(TokenLifetimeProperties.class)
 public class SecurityConfig {
 
     @Bean
     SecurityFilterChain filterChain(
             HttpSecurity http,
-            JwtService jwtService,
-            RespostaDeErroDeSeguranca respostaDeErro) throws Exception {
+            JwtTokenReader jwtTokenReader,
+            SecurityErrorResponder respostaDeErro) throws Exception {
 
         return http
                 // CSRF protege sessoes baseadas em cookie; numa API stateless consumida por
@@ -48,7 +48,7 @@ public class SecurityConfig {
                 // Antes do filtro de usuario e senha, que e onde a cadeia padrao esperaria um
                 // formulario de login — inexistente aqui.
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtService),
+                        new JwtAuthenticationFilter(jwtTokenReader),
                         UsernamePasswordAuthenticationFilter.class)
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())

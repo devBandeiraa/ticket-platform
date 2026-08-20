@@ -4,7 +4,7 @@ import com.devbandeiraa.authservice.domain.RefreshToken;
 import com.devbandeiraa.authservice.domain.User;
 import com.devbandeiraa.authservice.exception.InvalidRefreshTokenException;
 import com.devbandeiraa.authservice.repository.RefreshTokenRepository;
-import com.devbandeiraa.authservice.security.JwtProperties;
+import com.devbandeiraa.authservice.security.TokenLifetimeProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -32,7 +32,7 @@ public class RefreshTokenService {
 
     private final SecureRandom aleatorio = new SecureRandom();
     private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtProperties propriedades;
+    private final TokenLifetimeProperties propriedades;
 
     /**
      * Transacao propria para a revogacao em massa disparada por suspeita de reuso.
@@ -46,7 +46,7 @@ public class RefreshTokenService {
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
-            JwtProperties propriedades,
+            TokenLifetimeProperties propriedades,
             PlatformTransactionManager gerenciadorDeTransacao) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.propriedades = propriedades;

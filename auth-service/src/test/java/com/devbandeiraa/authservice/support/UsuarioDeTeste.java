@@ -1,6 +1,6 @@
 package com.devbandeiraa.authservice.support;
 
-import com.devbandeiraa.authservice.domain.Role;
+import com.devbandeiraa.shared.security.Role;
 import com.devbandeiraa.authservice.domain.User;
 import java.util.UUID;
 import org.springframework.test.util.ReflectionTestUtils;

@@ -1,6 +1,6 @@
 package com.devbandeiraa.authservice.dto.response;
 
-import com.devbandeiraa.authservice.domain.Role;
+import com.devbandeiraa.shared.security.Role;
 import com.devbandeiraa.authservice.domain.User;
 import java.time.Instant;
 import java.util.UUID;

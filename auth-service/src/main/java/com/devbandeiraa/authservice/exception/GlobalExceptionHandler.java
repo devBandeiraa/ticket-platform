@@ -1,5 +1,6 @@
 package com.devbandeiraa.authservice.exception;
 
+import com.devbandeiraa.shared.security.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;

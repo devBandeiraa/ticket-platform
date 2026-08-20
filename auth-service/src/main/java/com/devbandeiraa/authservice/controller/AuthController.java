@@ -6,7 +6,7 @@ import com.devbandeiraa.authservice.dto.request.RefreshTokenRequest;
 import com.devbandeiraa.authservice.dto.request.RegisterRequest;
 import com.devbandeiraa.authservice.dto.response.AuthTokensResponse;
 import com.devbandeiraa.authservice.dto.response.UserResponse;
-import com.devbandeiraa.authservice.security.AuthenticatedUser;
+import com.devbandeiraa.shared.security.AuthenticatedUser;
 import com.devbandeiraa.authservice.service.AuthenticationService;
 import com.devbandeiraa.authservice.service.UserRegistrationService;
 import jakarta.validation.Valid;
