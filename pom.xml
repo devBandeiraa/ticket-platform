@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.devbandeiraa</groupId>
+	<artifactId>ticket-platform</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>pom</packaging>
+	<name>ticket-platform</name>
+	<description>Agregador do monorepo da plataforma de ingressos</description>
+
+	<!--
+		Agregador apenas: nao e o parent dos modulos. Cada servico continua herdando de
+		spring-boot-starter-parent, e este POM so existe para que `./mvnw install` na raiz
+		construa tudo na ordem correta de dependencia.
+
+		Sem ele, quem clonasse o repositorio precisaria instalar o shared-security no
+		repositorio local antes de conseguir compilar qualquer servico que dependa dele —
+		um passo manual facil de esquecer e que quebraria em CI.
+
+		O shared-security vem primeiro por clareza de leitura; o Maven de todo modo resolve
+		a ordem real a partir das dependencias declaradas.
+	-->
+	<modules>
+		<module>shared-security</module>
+		<module>auth-service</module>
+		<module>event-service</module>
+		<module>booking-service</module>
+		<module>notification-service</module>
+		<module>api-gateway</module>
+	</modules>
+
+</project>
