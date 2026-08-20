@@ -71,6 +71,16 @@ booking:
     # tentar processar tudo de uma vez. O que sobrar sai na varredura seguinte.
     tamanho-do-lote: ${BOOKING_EXPIRACAO_LOTE:200}
 
+  outbox:
+    # Latencia que a outbox acrescenta a notificacao: e o preco de trocar publicacao imediata por
+    # publicacao garantida. Dois segundos e imperceptivel para um e-mail de confirmacao.
+    intervalo: ${BOOKING_OUTBOX_INTERVALO:2s}
+    atraso-inicial: ${BOOKING_OUTBOX_ATRASO_INICIAL:10s}
+    tamanho-do-lote: ${BOOKING_OUTBOX_LOTE:100}
+    # Depois disso a mensagem e marcada como FAILED e sai do caminho. Perder uma notificacao e
+    # ruim; deixar uma mensagem envenenada ocupar o lote a cada varredura e pior.
+    max-tentativas: ${BOOKING_OUTBOX_MAX_TENTATIVAS:5}
+
   event-service:
     url: ${EVENT_SERVICE_URL:http://localhost:8082}
     # Curtos de proposito: esta chamada acontece dentro do pedido de reserva de alguem, e um

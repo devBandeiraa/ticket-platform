@@ -7,8 +7,7 @@ import com.devbandeiraa.bookingservice.lock.DistributedLock;
 import com.devbandeiraa.bookingservice.lock.LockIndisponivelException;
 import com.devbandeiraa.bookingservice.lock.LockProperties;
 import com.devbandeiraa.bookingservice.lock.RedisDistributedLock;
-import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
-import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.UUID;
@@ -32,7 +31,7 @@ import org.springframework.test.context.ActiveProfiles;
  * entram juntos na secao critica, e que liberar o lock nunca atinge o lock de outro.
  */
 @SpringBootTest
-@Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class LockDistribuidoIntegrationTest {
 

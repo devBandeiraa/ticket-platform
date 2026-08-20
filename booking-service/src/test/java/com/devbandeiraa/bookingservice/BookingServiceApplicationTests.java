@@ -1,7 +1,6 @@
 package com.devbandeiraa.bookingservice;
 
-import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
-import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -15,7 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
  * migration — coluna renomeada, tipo trocado, campo novo sem DDL — a aplicacao nao inicia.
  */
 @SpringBootTest
-@Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class BookingServiceApplicationTests {
 

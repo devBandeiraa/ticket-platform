@@ -10,6 +10,8 @@ import com.devbandeiraa.bookingservice.exception.ChaveDeIdempotenciaInvalidaExce
 import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.exception.TransicaoDeReservaInvalidaException;
 import com.devbandeiraa.bookingservice.lock.DistributedLock;
+import com.devbandeiraa.bookingservice.messaging.BookingConfirmedEvent;
+import com.devbandeiraa.bookingservice.messaging.OutboxRegistrar;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSpecifications;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
@@ -48,6 +50,7 @@ public class BookingService {
     private final EventInventoryRepository estoqueRepository;
     private final EstoqueService estoqueService;
     private final ReservaTransacional reservaTransacional;
+    private final OutboxRegistrar outboxRegistrar;
     private final DistributedLock lock;
     private final ReservaProperties propriedades;
 
@@ -55,12 +58,14 @@ public class BookingService {
                           EventInventoryRepository estoqueRepository,
                           EstoqueService estoqueService,
                           ReservaTransacional reservaTransacional,
+                          OutboxRegistrar outboxRegistrar,
                           DistributedLock lock,
                           ReservaProperties propriedades) {
         this.bookingRepository = bookingRepository;
         this.estoqueRepository = estoqueRepository;
         this.estoqueService = estoqueService;
         this.reservaTransacional = reservaTransacional;
+        this.outboxRegistrar = outboxRegistrar;
         this.lock = lock;
         this.propriedades = propriedades;
     }
@@ -189,8 +194,16 @@ public class BookingService {
             return recusarPagamento(id);
         }
 
+        Booking confirmada = recarregar(id);
+
+        // Na MESMA transacao que confirmou a reserva. Este e o ponto inteiro da outbox: publicar
+        // no RabbitMQ aqui deixaria uma notificacao de pagamento sem pagamento caso o commit
+        // falhasse; publicar depois do commit deixaria a reserva paga sem que ninguem soubesse,
+        // caso a publicacao falhasse. Gravado junto, os dois fatos existem ou nao existem.
+        outboxRegistrar.registrarConfirmacao(BookingConfirmedEvent.de(confirmada));
+
         log.info("reserva paga: id={} usuario={}", id, reserva.getUserId());
-        return BookingResponse.de(recarregar(id));
+        return BookingResponse.de(confirmada);
     }
 
     /**

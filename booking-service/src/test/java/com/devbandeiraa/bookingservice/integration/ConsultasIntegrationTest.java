@@ -13,8 +13,7 @@ import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
-import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
-import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,7 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** Testes da disponibilidade publica e da listagem administrativa. */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class ConsultasIntegrationTest {
 

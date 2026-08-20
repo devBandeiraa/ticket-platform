@@ -20,8 +20,7 @@ import com.devbandeiraa.bookingservice.exception.EventoNaoDisponivelException;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
-import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
-import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +45,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class ReservaIntegrationTest {
 

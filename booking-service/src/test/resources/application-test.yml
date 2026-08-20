@@ -12,3 +12,7 @@ booking:
     atraso-inicial: 1000d
     # Lote pequeno de proposito, para que o teste de paginacao do lote seja barato.
     tamanho-do-lote: 50
+
+  outbox:
+    # Mesma razao: o publicador tambem e chamado diretamente nos testes.
+    atraso-inicial: 1000d

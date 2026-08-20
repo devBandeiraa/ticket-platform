@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
-import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
-import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * escrevendo direto na tabela, como faria um script de correcao as pressas na madrugada.
  */
 @SpringBootTest
-@Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class EstoqueConstraintIntegrationTest {
 

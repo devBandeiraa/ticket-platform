@@ -13,8 +13,7 @@ import com.devbandeiraa.bookingservice.lock.DistributedLock;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
 import com.devbandeiraa.bookingservice.service.BookingService;
-import com.devbandeiraa.bookingservice.support.PostgresContainerConfig;
-import com.devbandeiraa.bookingservice.support.RedisContainerConfig;
+import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,7 +50,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * <p>Se este teste falhar, o projeto inteiro esta apoiado numa premissa falsa.
  */
 @SpringBootTest
-@Import({PostgresContainerConfig.class, RedisContainerConfig.class})
+@Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class OversellingSemLockIntegrationTest {
 
