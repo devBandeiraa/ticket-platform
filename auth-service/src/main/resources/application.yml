@@ -49,3 +49,21 @@ management:
 logging:
   level:
     com.devbandeiraa.authservice: DEBUG
+
+---
+# Perfil de desenvolvimento: acrescenta a pasta db/dev as locations do Flyway,
+# onde vive o seed do primeiro administrador.
+#
+# Nao ha profile padrao de proposito. Se `dev` fosse o padrao, subir em producao
+# sem lembrar de sobrescrever criaria um admin com senha publicamente conhecida —
+# o tipo de erro que so se descobre tarde demais. Aqui o seed precisa ser pedido
+# explicitamente:
+#
+#     ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+#     SPRING_PROFILES_ACTIVE=dev java -jar auth-service.jar
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
