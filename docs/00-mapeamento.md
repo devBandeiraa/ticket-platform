@@ -580,6 +580,54 @@ Nomes em português acompanham o resto do projeto — a exceção é `api/tipos.
 mantêm o nome que vem no JSON. Traduzi-los exigiria um mapeamento a cada resposta e criaria dois
 vocabulários para a mesma coisa.
 
+### Empacotamento *(Fase 8)*
+
+```
+docker-compose.yml           tudo: infraestrutura, cinco servicos e o frontend
+docker/
+├── Dockerfile.servico       um so, parametrizado por MODULO
+└── postgres/init-databases.sh
+frontend/
+├── Dockerfile               Node compila, nginx serve
+└── nginx.conf
+.dockerignore
+```
+
+**Um Dockerfile para os cinco serviços**, parametrizado por `MODULO`. O que muda entre eles é
+apenas qual jar copiar; cinco cópias divergiriam — bastaria alguém corrigir a versão do JRE em
+quatro delas.
+
+O contexto de build é a **raiz** do repositório, e não a pasta do serviço: é um monorepo Maven, e
+todo serviço depende do `shared-security`.
+
+**A compilação constrói o projeto inteiro**, e não `-pl $MODULO -am`. Parece desperdício e é o
+contrário: com o comando idêntico nas cinco imagens, o Docker reconhece a camada e reaproveita —
+o Maven roda uma vez. Compilando por módulo, cada imagem teria um comando diferente e o
+`shared-security` seria recompilado cinco vezes.
+
+Os testes ficam de fora da imagem: os de integração sobem Testcontainers, o que exigiria um Docker
+dentro do build. Eles rodam no `./mvnw clean install`, antes de se construir imagem alguma.
+
+**Portas do host separadas das internas.** Dentro da rede do compose os serviços se encontram pelo
+nome do container, nas portas padrão. Quem troca `POSTGRES_HOST_PORT` para fugir de um conflito
+local não pode, com isso, quebrar a conexão entre os containers — o que aconteceria se a mesma
+variável servisse aos dois papéis.
+
+**Ordem de subida** por `depends_on` com `condition`. Nem toda dependência é `service_healthy`: o
+`booking-service` espera o `event-service` apenas *iniciar*, porque a hidratação do estoque só
+acontece na primeira reserva de cada evento. O gateway também não espera ninguém ficar saudável —
+resolve o destino por requisição e responde `503` no que ainda não estiver pronto, em vez de
+segurar a subida inteira pelo serviço mais lento.
+
+**O frontend vira estático.** O que vai para produção é HTML, CSS e JS; manter o Node na imagem
+final carregaria centenas de megabytes para entregar arquivos que o nginx entrega melhor. O
+`nginx.conf` precisa do fallback para `/index.html`: sem ele, recarregar em `/minhas-reservas`
+daria `404` — a rota funcionaria navegando pelo app e quebraria no F5, que é o pior tipo de bug.
+
+**`VITE_API_URL` é embutida na compilação** e aponta para `localhost:8080`, não para
+`api-gateway:8080`. Quem faz a chamada é o navegador de quem acessa, que não enxerga a rede do
+compose.
+
 ---
 
 ## 5. Riscos técnicos
@@ -595,7 +643,7 @@ vocabulários para a mesma coisa.
 | 7 | Teste de concorrência intermitente — H2 não reproduz o isolamento do PostgreSQL | Média | Testcontainers com Postgres e Redis reais; rodar o teste várias vezes no checkpoint |
 | 8 | JWT sem revogação: logout não invalida o access token já emitido | Baixa | TTL curto no access token (15 min) + revogação no refresh token |
 | 9 | Gateway como ponto único de falha e de autenticação | Baixa | Aceito no escopo; vira `replicas: 2` na fase de Kubernetes. **Atenuado na Fase 6:** cada serviço segue validando o JWT, então o gateway não é a *única* barreira de autenticação — apenas a primeira |
-| 10 | Ordem de subida dos containers: app tenta conectar antes de Postgres/RabbitMQ ficarem prontos | Média | `healthcheck` + `depends_on: condition: service_healthy` |
+| 10 | Ordem de subida dos containers: app tenta conectar antes de Postgres/RabbitMQ ficarem prontos | Média | **Resolvido na Fase 8:** `healthcheck` + `depends_on: condition: service_healthy` nas dependências de infraestrutura, e `service_started` onde esperar por saúde só atrasaria a subida |
 | 11 | Listagem pública sem índice degrada com volume | Baixa | Índice `(status, event_date)` + paginação obrigatória |
 | 12 | Corrida entre pagar e expirar: usuário clica "pagar" no instante do job | Média | Transição condicional com `expires_at > now()` no `WHERE`; perde quem chegar depois, de forma determinística |
 | 13 | Devolução dupla de estoque (job e cancelamento manual simultâneos) | Média | A mudança de status é o guarda: só a transação que alterou a linha decrementa |
@@ -614,6 +662,10 @@ vocabulários para a mesma coisa.
 | 26 | XSS no frontend alcançaria o access token guardado em disco | Média | **Atenuado na Fase 7:** o access token vive só em memória. O refresh token, que fica no `localStorage`, ao menos é revogável pelo `/auth/logout` |
 | 27 | Clique repetido em "Reservar" criaria duas reservas | Média | **Resolvido na Fase 7:** a `Idempotency-Key` é fixa por intenção de compra, e não por requisição |
 | 28 | A demo de concorrência esbarra no rate limiter e o resultado engana | Média | **Resolvido na Fase 7:** os `429` são contados em separado, com aviso na tela; o limite padrão de rajada é 40 |
+| 29 | Healthcheck que aponta para `localhost` falha onde o processo só escuta em IPv4 | Baixa | **Encontrado na Fase 8:** o `frontend` ficou eternamente `unhealthy` servindo perfeitamente bem, porque `localhost` resolve `::1` antes do IPv4 e o `listen 80` do nginx só liga IPv4. Todos os healthchecks passaram a usar `127.0.0.1` |
+| 30 | JVM ignora o limite de memória do container e é morta por OOM | Média | **Resolvido na Fase 8:** `-XX:MaxRAMPercentage=75`. Sem isso a JVM enxerga a memória da máquina inteira e dimensiona o heap por ela |
+| 31 | Trocar uma porta publicada para fugir de conflito local quebra a comunicação entre containers | Média | **Resolvido na Fase 8:** as portas do host são variáveis distintas das internas, que são fixas |
+| 32 | Segredo ou `target/` da máquina acabando dentro de uma imagem | Média | **Resolvido na Fase 8:** `.dockerignore` na raiz e no frontend; o `.env` está explicitamente excluído |
 
 ---
 
@@ -652,3 +704,9 @@ vocabulários para a mesma coisa.
 | Camada de dados *(Fase 7)* | TanStack Query | O que a mão escreveria — cache, invalidação após mutação, estado de carregamento — é justamente onde os bugs sutis moram. Invalidar `disponibilidade` depois de reservar é uma linha, e não um `useEffect` a mais |
 | Endereço da API no desenvolvimento *(Fase 7)* | Gateway direto, sem proxy do Vite | Um proxy tornaria toda chamada same-origin e esconderia uma origem mal liberada no CORS até a primeira publicação |
 | Escopo dos testes do frontend *(Fase 7)* | Cliente HTTP e formatação | É onde há lógica que falha de forma silenciosa e cara. Testar renderização de página verificaria sobretudo o próprio React |
+| Dockerfile dos serviços *(Fase 8)* | Um só, parametrizado por `MODULO` | O que difere entre os cinco é qual jar copiar. Cinco arquivos quase idênticos divergiriam no primeiro conserto feito em quatro deles |
+| Escopo da compilação na imagem *(Fase 8)* | Projeto inteiro, não `-pl -am` | Comando idêntico nas cinco imagens faz o Docker reaproveitar a camada e rodar o Maven uma vez. Por módulo, cada imagem teria um comando distinto e recompilaria o `shared-security` |
+| Testes dentro do build da imagem *(Fase 8)* | Não | Os de integração sobem Testcontainers, o que exigiria Docker dentro do build. Rodam no `./mvnw clean install`, antes de existir imagem |
+| Servidor do frontend *(Fase 8)* | nginx, com o Node só na compilação | O entregável é estático. Manter o Node na imagem final carregaria centenas de megabytes e uma superfície de ataque para servir arquivos |
+| Seed do admin no compose *(Fase 8)* | Profile `dev` ligado por padrão | Este compose *é* o ambiente de desenvolvimento, e sem o seed não há caminho para o primeiro evento existir. Fica em variável para poder ser desligado |
+| Chamada entre serviços *(Fase 8)* | Direta, sem passar pelo gateway | O gateway é a porta de quem vem de fora. Rotear o tráfego interno por ele acrescentaria um salto de rede e um ponto de falha sem oferecer nada em troca |

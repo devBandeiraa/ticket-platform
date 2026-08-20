@@ -1,0 +1,32 @@
+# O que NAO entra no contexto enviado ao daemon do Docker.
+#
+# Sem isto, cada `docker build` empacotaria os target/ dos sete modulos, o node_modules do
+# frontend e todo o historico do git — centenas de megabytes por servico, refeitos a cada
+# build. Alem de lento, e errado: um target/ vindo da maquina invalidaria o cache de camadas
+# a cada compilacao local, mesmo sem nenhuma mudanca de codigo.
+
+# Artefatos de build — a imagem compila o proprio jar
+target/
+*.jar
+*.class
+
+# Frontend: tem contexto e .dockerignore proprios; aqui e so peso morto
+frontend/node_modules/
+frontend/dist/
+node_modules/
+
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+
+# Segredos jamais entram numa imagem
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+docs/
+*.log

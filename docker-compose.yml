@@ -1,12 +1,55 @@
-# Infraestrutura local da plataforma de ingressos.
+# Plataforma de ingressos completa: infraestrutura, os cinco servicos e o frontend.
 #
-# Nesta fase o compose sobe apenas as dependencias externas (banco, cache e broker).
-# Os microsservicos ainda rodam na maquina via `mvn spring-boot:run`, apontando para
-# localhost. A conteinerizacao dos servicos entra na Fase 8.
+#     docker compose up --build      sobe tudo
+#     docker compose up postgres redis rabbitmq
+#                                    so a infraestrutura, para rodar um servico pela IDE
+#
+# Depois de tudo no ar, o unico endereco que interessa e http://localhost:5173.
 
 name: ticket-platform
 
+# ---------------------------------------------------------------------------
+# Blocos reaproveitados
+# ---------------------------------------------------------------------------
+
+# Endereco dos servicos de apoio DENTRO da rede do compose. Deliberadamente separado das
+# portas publicadas no host: quem troca a porta publicada para fugir de um conflito local
+# nao pode, com isso, quebrar a conexao entre os containers.
+x-infra-interna: &infra-interna
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  RABBITMQ_USER: ${RABBITMQ_USER:-ticket}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-ticket}
+  JWT_SECRET: ${JWT_SECRET:-desenvolvimento-local-troque-este-segredo-antes-de-publicar}
+
+x-servico-java: &servico-java
+  restart: unless-stopped
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.servico
+
+# wget do busybox, ja presente na imagem alpine: instalar curl so para o healthcheck
+# acrescentaria pacote e superficie a uma imagem que nao precisa dele.
+#
+# O endereco e 127.0.0.1, e nao `localhost`: dentro do container `localhost` resolve para
+# ::1 antes do IPv4, e um processo que so escuta em IPv4 recusa a conexao — o container fica
+# eternamente unhealthy servindo perfeitamente bem.
+x-healthcheck-java: &healthcheck-java
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  # Generoso porque a primeira subida roda as migrations do Flyway.
+  start_period: 60s
+
 services:
+  # -------------------------------------------------------------------------
+  # Infraestrutura
+  # -------------------------------------------------------------------------
+
   postgres:
     image: postgres:17-alpine
     container_name: ticket-postgres
@@ -47,10 +90,10 @@ services:
     container_name: ticket-redis
     restart: unless-stopped
     # appendonly garante que o estado sobreviva a um restart do container. O lock
-    # distribuido em si e efemero, mas o rate limiting do gateway (Fase 6) agradece.
+    # distribuido em si e efemero, mas o rate limiting do gateway agradece.
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -68,7 +111,7 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ticket}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-ticket}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_HOST_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -78,6 +121,174 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+
+  # -------------------------------------------------------------------------
+  # Servicos
+  # -------------------------------------------------------------------------
+
+  auth-service:
+    <<: *servico-java
+    container_name: ticket-auth
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.servico
+      args:
+        MODULO: auth-service
+        PORTA: 8081
+    environment:
+      <<: *infra-interna
+      SERVER_PORT: 8081
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-authdb}
+      AUTH_DB_USER: ${AUTH_DB_USER:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-auth_pass}
+      # O seed do primeiro administrador vive sob o profile `dev`, e sem ele o banco nasce
+      # sem admin algum — nao havendo, portanto, caminho para criar o primeiro evento, ja
+      # que o cadastro publico sempre gera USER.
+      #
+      # Ligado por padrao porque este compose E o ambiente de desenvolvimento. Publicando de
+      # verdade, defina AUTH_PROFILE vazio: o admin com senha publicamente conhecida deixa de
+      # existir.
+      SPRING_PROFILES_ACTIVE: ${AUTH_PROFILE-dev}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-java
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8081/actuator/health || exit 1"]
+
+  event-service:
+    <<: *servico-java
+    container_name: ticket-event
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.servico
+      args:
+        MODULO: event-service
+        PORTA: 8082
+    environment:
+      <<: *infra-interna
+      SERVER_PORT: 8082
+      EVENT_DB_NAME: ${EVENT_DB_NAME:-eventdb}
+      EVENT_DB_USER: ${EVENT_DB_USER:-event_user}
+      EVENT_DB_PASSWORD: ${EVENT_DB_PASSWORD:-event_pass}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-java
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8082/actuator/health || exit 1"]
+
+  booking-service:
+    <<: *servico-java
+    container_name: ticket-booking
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.servico
+      args:
+        MODULO: booking-service
+        PORTA: 8083
+    environment:
+      <<: *infra-interna
+      SERVER_PORT: 8083
+      BOOKING_DB_NAME: ${BOOKING_DB_NAME:-bookingdb}
+      BOOKING_DB_USER: ${BOOKING_DB_USER:-booking_user}
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:-booking_pass}
+      # Chamada servico a servico, por dentro da rede: nao passa pelo gateway. O gateway e a
+      # porta de entrada de quem vem de fora, e por ele so o transito interno ganharia um
+      # salto de rede e um ponto de falha a mais.
+      EVENT_SERVICE_URL: http://event-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      # Nao e `service_healthy`: a hidratacao do estoque so acontece na primeira reserva de
+      # cada evento, e falhar ate la nao impede o booking-service de subir.
+      event-service:
+        condition: service_started
+    healthcheck:
+      <<: *healthcheck-java
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8083/actuator/health || exit 1"]
+
+  notification-service:
+    <<: *servico-java
+    container_name: ticket-notification
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.servico
+      args:
+        MODULO: notification-service
+        PORTA: 8084
+    environment:
+      <<: *infra-interna
+      SERVER_PORT: 8084
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-java
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8084/actuator/health || exit 1"]
+
+  api-gateway:
+    <<: *servico-java
+    container_name: ticket-gateway
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.servico
+      args:
+        MODULO: api-gateway
+        PORTA: 8080
+    environment:
+      <<: *infra-interna
+      SERVER_PORT: 8080
+      AUTH_SERVICE_URI: http://auth-service:8081
+      EVENT_SERVICE_URI: http://event-service:8082
+      BOOKING_SERVICE_URI: http://booking-service:8083
+      # Origem do navegador, e nao nome de container: o preflight parte da maquina de quem
+      # acessa. Precisa casar com a porta em que o frontend e publicado.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      # `service_started`, e nao `healthy`: o gateway resolve o destino por requisicao, entao
+      # sobe e responde 503 no que ainda nao estiver pronto, em vez de segurar a subida
+      # inteira esperando pelo servico mais lento.
+      auth-service:
+        condition: service_started
+      event-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+    healthcheck:
+      <<: *healthcheck-java
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/actuator/health || exit 1"]
+
+  frontend:
+    container_name: ticket-frontend
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        # Endereco que o NAVEGADOR usa. Embutido no bundle pelo Vite na compilacao — trocar
+        # depois exige reconstruir a imagem, nao basta mudar a variavel.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
 volumes:
   postgres-data:
