@@ -1,0 +1,62 @@
+# event-service — catalogo e gestao de eventos.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-service
+  namespace: ticket-platform
+spec:
+  selector:
+    app: event-service
+  ports:
+    - port: 8082
+      targetPort: 8082
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-service
+  namespace: ticket-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-service
+  template:
+    metadata:
+      labels:
+        app: event-service
+    spec:
+      initContainers:
+        - name: espera-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", 'until nc -z postgres 5432; do sleep 2; done']
+      containers:
+        - name: event-service
+          image: ticket-platform-event-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+          env:
+            - name: SERVER_PORT
+              value: "8082"
+            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+              value: "true"
+          envFrom:
+            - configMapRef: { name: plataforma }
+            - secretRef: { name: jwt }
+            - secretRef: { name: event-db }
+          startupProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8082 }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8082 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8082 }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 320Mi }
+            limits: { memory: 768Mi }

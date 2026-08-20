@@ -1,0 +1,6 @@
+# Namespace proprio: isola a plataforma do resto do cluster e faz `kubectl delete namespace
+# ticket-platform` limpar tudo de uma vez, sem caçar recurso solto.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ticket-platform
