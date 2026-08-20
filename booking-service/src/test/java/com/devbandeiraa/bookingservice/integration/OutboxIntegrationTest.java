@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.AmqpConnectException;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -213,9 +214,44 @@ class OutboxIntegrationTest {
         assertThat(primeiraMensagem().getAttempts()).isEqualTo(5);
     }
 
+    @Test
+    @DisplayName("broker inalcancavel nao consome tentativa, por mais varreduras que passem")
+    void naoDeveConsumirTentativaComBrokerInalcancavel() throws Exception {
+        Booking reserva = reservaPendente(1);
+        mockMvc.perform(pagar(reserva.getId())).andExpect(status().isOk());
+
+        simularBrokerInalcancavel();
+
+        // O dobro do limite de tentativas. Se falha de transporte consumisse orcamento, a
+        // mensagem ja teria sido descartada na quinta.
+        for (int varredura = 0; varredura < 10; varredura++) {
+            outboxPublisher.publicarPendentes();
+        }
+
+        // O orcamento de tentativas existe para mensagem defeituosa. Broker fora do ar nao diz
+        // nada sobre a mensagem, e gastar tentativa nisso transformava o limite num cronometro:
+        // com varredura a cada 2s, dez segundos de indisponibilidade perdiam a notificacao.
+        OutboxMessage mensagem = primeiraMensagem();
+        assertThat(mensagem.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(mensagem.getAttempts()).isZero();
+
+        // E, com o broker de volta, ela sai normalmente.
+        org.mockito.Mockito.reset(rabbitTemplate);
+        outboxPublisher.publicarPendentes();
+        assertThat(primeiraMensagem().getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
+    }
+
     // ---------- apoio ----------
 
     /** Faz o proximo envio ao broker falhar, sem derrubar o container. */
+    /** Broker inalcancavel: falha de transporte, e nao recusa da mensagem. */
+    private void simularBrokerInalcancavel() {
+        doThrow(new AmqpConnectException(new java.net.ConnectException("rabbitmq: nao resolve")))
+                .when(rabbitTemplate)
+                .convertAndSend(anyString(), anyString(), any(Object.class),
+                        any(MessagePostProcessor.class));
+    }
+
     private void simularBrokerIndisponivel() {
         doThrow(new AmqpException("broker indisponivel"))
                 .when(rabbitTemplate)
