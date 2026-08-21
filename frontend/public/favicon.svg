@@ -2,60 +2,57 @@
   <title id="t">ticket.platform</title>
 
   <!--
-    Ingresso recortado num ladrilho da cor da marca.
+    Ingresso recortado num ladrilho solido.
 
-    Geometria a mao, sem gradiente, brilho ou sombra. Nao e purismo: um favicon vive a 16
-    pixels, e qualquer um desses efeitos vira sujeira cinzenta nesse tamanho. O que sobrevive
-    a reducao e silhueta.
+    Tres elementos no total: ladrilho, corpo e picote. Sem gradiente, brilho ou sombra, e
+    tambem sem nenhum detalhe decorativo. Nao e so gosto: um favicon vive a 16 pixels, e
+    qualquer coisa alem da silhueta vira sujeira cinzenta nesse tamanho.
 
     Ladrilho solido em vez do ingresso solto porque a aba do navegador pode ser clara ou
     escura, e o icone precisa funcionar nas duas. Fundo proprio resolve isso de uma vez.
 
-    #4699FE e a variavel `color-marca` do tema (oklch 68% .17 255) convertida para sRGB. Em
-    hex, e nao em oklch, porque o icone tambem e lido fora do navegador (barra de tarefas,
-    atalho de area de trabalho) por coisas que nao interpretam espacos de cor modernos.
+    Cantos generosos, no ladrilho (raio 8 de 32) e no corpo (raio 3): e o que da a leitura
+    suave. Canto vivo endurece a forma e, reduzido, ainda serrilha.
+
+    #2E9E96 e proposital: nao e a `color-marca` do tema. Um verde azulado calmo destaca numa
+    barra de abas que e quase toda azul, e sustenta melhor o branco por cima (contraste 3.4:1
+    contra 2.9:1 do azul da marca). Em hex, e nao em oklch, porque o icone tambem e lido fora
+    do navegador, por coisas que nao interpretam espacos de cor modernos.
   -->
-  <rect width="32" height="32" rx="7" fill="#4699FE"/>
+  <rect width="32" height="32" rx="8" fill="#2E9E96"/>
 
   <!--
-    Corpo do ingresso: 24 x 17 numa arte de 32, deixando so a margem que o canto arredondado
-    do ladrilho exige. Cada pixel de respiro em volta e um pixel a menos de forma, e a 16
-    pixels a forma e tudo o que resta.
+    Corpo do ingresso: 24 x 17 numa arte de 32, deixando so a margem que o canto do ladrilho
+    exige. Cada pixel de respiro em volta e um pixel a menos de forma.
 
-    As duas mordidas semicirculares nas laterais sao o que faz isto ser lido como ingresso, e
-    nao como um cartao qualquer. O raio delas foi o unico numero dificil deste arquivo: a 3.2
-    a cintura sobrava com 57% da altura e o desenho virava ampulheta quando reduzido; a 2.4 a
-    mordida sumia e voltava a ser cartao. 2.8 deixa 67% de cintura, que le como mordida sem
-    estrangular a silhueta.
+    As duas mordidas semicirculares nas laterais sao o unico traco que faz isto ser lido como
+    ingresso, e nao como um cartao. O raio delas foi o numero dificil deste arquivo: a 3.2 a
+    cintura ficava com 57% da altura e o desenho virava ampulheta quando reduzido; a 2.4 a
+    mordida sumia. 2.6 deixa 69%, que le como mordida sem estrangular a silhueta.
   -->
-  <path fill="#FFFFFF" d="M6.5 7.5
-    H25.5
-    A2.5 2.5 0 0 1 28 10
-    V13.2
-    A2.8 2.8 0 0 0 28 18.8
-    V22
-    A2.5 2.5 0 0 1 25.5 24.5
-    H6.5
-    A2.5 2.5 0 0 1 4 22
-    V18.8
-    A2.8 2.8 0 0 0 4 13.2
-    V10
-    A2.5 2.5 0 0 1 6.5 7.5
+  <path fill="#FFFFFF" d="M7 7.5
+    H25
+    A3 3 0 0 1 28 10.5
+    V13.4
+    A2.6 2.6 0 0 0 28 18.6
+    V21.5
+    A3 3 0 0 1 25 24.5
+    H7
+    A3 3 0 0 1 4 21.5
+    V18.6
+    A2.6 2.6 0 0 0 4 13.4
+    V10.5
+    A3 3 0 0 1 7 7.5
     Z"/>
 
   <!--
-    Picote do canhoto: tres furos, e nao uma linha tracejada. Tracejado com muitos segmentos
-    vira um risco continuo e borrado quando reduzido; furos redondos e espacados aguentam mais.
+    Picote do canhoto: um traco continuo e fino, e nao uma fileira de furos. Tres furos eram
+    tres formas competindo dentro de um corpo de 17 unidades de altura, e a 16 pixels somavam
+    num borrao pontilhado. Um traco so diz a mesma coisa com um terco do peso visual, e
+    degrada em silencio: encolhendo, ele apenas clareia ate sumir, sem deixar granulado.
 
-    `stroke-dasharray="0 4.5"` com ponta redonda desenha ponto, e nao traco: cada segmento tem
-    comprimento zero e so a ponta aparece, nas distancias 0, 4.5 e 9. O traco vai de y=11.5 a
-    y=21, comprimento 9.5, de proposito meia unidade mais longo do que o ultimo ponto precisa:
-    ponto que cai exatamente no fim do traco e descartado na rasterizacao, e o desenho perdia
-    o terceiro furo e ficava assimetrico.
-
-    Abaixo de 24 pixels os furos somam num borrao, e tudo bem: e o detalhe que se perde
-    primeiro, de proposito, enquanto a silhueta com as mordidas continua entregando a forma.
+    Fora do centro, a 21.5 de 32: divide o ingresso em bilhete e canhoto, que e a proporcao
+    real. No centro pareceria uma dobra, e nao um destaque.
   -->
-  <path stroke="#4699FE" stroke-width="2" stroke-linecap="round" stroke-dasharray="0 4.5"
-        d="M21.5 11.5V21"/>
+  <path stroke="#2E9E96" stroke-width="1.4" stroke-linecap="round" d="M21.5 12V20"/>
 </svg>
