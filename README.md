@@ -11,7 +11,7 @@
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-4-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)](#)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](#)
 [![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](#)
-[![Testes](https://img.shields.io/badge/testes-201-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-217-success?style=flat-square)](#testes)
 
 </div>
 
@@ -58,6 +58,27 @@ Nenhum `.env` é necessário. Todo valor tem padrão.
 Prefere ver em Kubernetes? Os manifestos estão em [`k8s/`](k8s/) — Kustomize, num cluster `kind`
 descartável, com o `booking-service` em duas réplicas. O passo a passo está no
 [`k8s/README.md`](k8s/README.md).
+
+---
+
+## Documentação da API
+
+Com a plataforma no ar → **http://localhost:8080/swagger-ui.html**
+
+Um Swagger UI só, no gateway, com um seletor para os três serviços que publicam HTTP. O gateway
+não tem controller algum para documentar, mas é o único endereço que o consumidor conhece — é
+onde a documentação precisa estar.
+
+Cada serviço gera a própria especificação, e ela viaja pelas **mesmas rotas do tráfego normal**.
+Isso é de propósito: se uma rota quebrar, a documentação correspondente quebra junto e o defeito
+aparece — em vez de uma página saudável descrevendo um caminho que não responde mais.
+
+O botão **Authorize** aceita o `accessToken` de `POST /auth/login`, e a partir daí o *Try it out*
+funciona de ponta a ponta, passando pelo rate limiting e pela autenticação na borda como qualquer
+chamada real.
+
+Para fechar a documentação num ambiente público, `OPENAPI_ENABLED=false` — que remove os
+endpoints, em vez de apenas protegê-los.
 
 ---
 
@@ -220,13 +241,14 @@ commit distribuído.
 | Como duplicatas são descartadas? | [`BookingConfirmedListener.java`](notification-service/src/main/java/com/devbandeiraa/notificationservice/messaging/BookingConfirmedListener.java) |
 | Como o gateway autentica? | [`AutenticacaoNaBordaFilter.java`](api-gateway/src/main/java/com/devbandeiraa/apigateway/security/AutenticacaoNaBordaFilter.java) |
 | Onde as rotas são declaradas? | [`application.yml`](api-gateway/src/main/resources/application.yml) |
+| Como a documentação é agregada? | [`application.yml`](api-gateway/src/main/resources/application.yml) *(bloco `springdoc`)* · [`OpenApiConfig.java`](booking-service/src/main/java/com/devbandeiraa/bookingservice/config/OpenApiConfig.java) |
 | A prova de que funciona | [`OversellingConcorrenteIntegrationTest.java`](booking-service/src/test/java/com/devbandeiraa/bookingservice/integration/OversellingConcorrenteIntegrationTest.java) |
 
 ---
 
 ## Testes
 
-**201 no total** — 183 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**217 no total** — 199 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 18 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -238,6 +260,8 @@ banco em memória não o reproduz.
 | `ConsumoDeConfirmacaoIntegrationTest` | Duplicata descartada, retry vence falha transitória, DLQ recebe a permanente |
 | `RateLimitIntegrationTest` | Os dois baldes são independentes, e o `429` sai no formato de erro da API |
 | `cliente.test.ts` | Renovação de token compartilhada entre chamadas simultâneas |
+| `DocumentacaoOpenApiIntegrationTest` | A especificação não mente sobre o que é público — e o `409 SOLD_OUT` continua documentado |
+| `DocumentacaoAgregadaIntegrationTest` | O Swagger do gateway sobe e aponta para rotas que existem — dois bugs reais, ambos com build verde e página 404 |
 | `OutboxIntegrationTest` *(broker inalcançável)* | Broker fora do ar não consome o orçamento de tentativas — bug encontrado ao subir em Kubernetes |
 
 ```bash

@@ -120,6 +120,34 @@ jwt:
   secret: ${JWT_SECRET:desenvolvimento-local-troque-este-segredo-antes-de-publicar}
   issuer: ticket-platform-auth
 
+# Documentacao reunida. O gateway nao tem controller algum para documentar — ele so encaminha —
+# mas e o unico endereco que o consumidor da API conhece, entao e aqui que a documentacao dos
+# tres servicos deve aparecer, num seletor unico.
+#
+# As URLs sao relativas e passam pelas MESMAS rotas do trafego normal. Isso e proposital: se
+# uma rota quebrar, a documentacao correspondente quebra junto e o defeito aparece — em vez de
+# uma pagina de documentacao saudavel descrevendo um caminho que nao responde mais.
+springdoc:
+  api-docs:
+    # Precisa ficar ligado, ainda que nao haja controller algum aqui para documentar: e este
+    # flag que liga a auto-configuracao inteira do springdoc, e desliga-lo leva junto a
+    # interface e o endpoint `/v3/api-docs/swagger-config`, de onde a propria pagina le a
+    # lista de servicos. Com ele desligado, o Swagger UI do gateway responde 404.
+    #
+    # O efeito colateral e uma especificacao vazia servida em /v3/api-docs. Ela nao aparece no
+    # seletor, porque `swagger-ui.urls` abaixo define explicitamente o que listar.
+    enabled: ${OPENAPI_ENABLED:true}
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:true}
+    path: /swagger-ui.html
+    urls:
+      - name: auth-service — cadastro e tokens
+        url: /api/auth/v3/api-docs
+      - name: event-service — catalogo de eventos
+        url: /api/events/v3/api-docs
+      - name: booking-service — reservas e estoque
+        url: /api/bookings/v3/api-docs
+
 management:
   endpoints:
     web:
