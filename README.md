@@ -4,6 +4,8 @@
 
 **Venda de ingressos em microsserviços — e o problema de não vender o mesmo assento duas vezes.**
 
+<sub>Projeto de portfólio — estudo aprofundado de um problema real de concorrência.</sub>
+
 [![Java](https://img.shields.io/badge/Java-17-007396?style=flat-square&logo=openjdk&logoColor=white)](#)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?style=flat-square&logo=springboot&logoColor=white)](#)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)](#)
@@ -14,6 +16,38 @@
 [![Testes](https://img.shields.io/badge/testes-217-success?style=flat-square)](#testes)
 
 </div>
+
+---
+
+## Sobre este projeto
+
+É um projeto de **portfólio**, e o caminho até ele foi de estudo — nove fases, uma por Pull
+Request, cada uma partindo de um documento de decisões escrito antes do código. Não roda em
+produção e não finge que roda: as [limitações estão listadas](#limitações-conscientes), cada uma
+com o motivo.
+
+O que ele **não** é: um CRUD com um tema por cima. A diferença está no tipo de erro possível. Num
+cadastro, o pior caso é uma tela feia; aqui existe uma **invariante que pode ser violada**, e
+violá-la custa dinheiro.
+
+Escolhi esse problema justamente porque ele **não aparece em desenvolvimento**. A implementação
+ingênua passa em todo teste manual, com um usuário de cada vez, e quebra exatamente quando o
+sistema fica interessante. Estudá-lo obriga a sair do framework e entender o que o banco de dados
+garante de verdade — que era o que eu queria aprender. E é um problema comum: qualquer sistema que
+venda estoque finito sob pico de demanda o enfrenta. Ingressos, passagens, vagas de curso, black
+friday.
+
+O projeto foi construído em volta de três exigências:
+
+1. **A garantia precisa estar num lugar identificável** — não diluída em "boas práticas".
+2. **Precisa continuar valendo quando a otimização falha** — por isso existe um teste que roda com
+   o lock distribuído desligado.
+3. **Precisa ser demonstrável em trinta segundos** por quem não leu o código — é o que a tela de
+   concorrência faz.
+
+Todo o resto do repositório — outbox, idempotência, DLQ, rate limiting, Kubernetes — nasceu de
+perguntar *"e se isto falhar?"* a partir desse núcleo. Nenhuma peça está aqui para preencher uma
+lista de tecnologias.
 
 ---
 
@@ -38,6 +72,40 @@ ela funciona.
 10 confirmadas, 20 recusadas, <b>zero vendidas a mais</b>.</sub>
 
 </div>
+
+---
+
+## Para quem está avaliando
+
+**Três minutos, sem abrir código.** Suba a plataforma (instruções logo abaixo), vá em
+*Concorrência*, escolha o evento **Show Lotado** — 10 ingressos — e dispare 30 reservas
+simultâneas. O resultado vem separado por código de resposta: quantas foram confirmadas, quantas
+levaram `409 SOLD_OUT`, quantas morreram no lock. O número que importa é o primeiro: **vendidos a
+mais**.
+
+**Dez minutos, com código.** Nesta ordem:
+
+1. [**Onde mora a garantia**](#onde-mora-a-garantia) — as oito linhas que resolvem o problema, e
+   por que não estão onde a maioria supõe.
+2. [**O bug que o teste pegou**](#o-bug-que-o-teste-pegou) — este projeto já vendeu 70 ingressos
+   para um evento de 50.
+3. [`OversellingSemLockIntegrationTest`](booking-service/src/test/java/com/devbandeiraa/bookingservice/integration/OversellingSemLockIntegrationTest.java) —
+   a mesma prova, com a otimização desligada.
+
+**Se a conversa for técnica**, o projeto sustenta discussão sobre:
+
+| Tema | Onde ele aparece aqui |
+|---|---|
+| Condição de corrida e controle de concorrência | `UPDATE` condicional + `CHECK constraint`, em vez de ler-decidir-gravar |
+| Consistência entre serviços sem commit distribuído | Transactional outbox no produtor, deduplicação no consumidor |
+| Idempotência de API | `Idempotency-Key` única **por usuário**, e o motivo de não ser global |
+| Ponto único de falha e degradação | O que acontece com o Redis fora do ar — e por que a reserva continua |
+| Autenticação em sistema distribuído | Validação na borda **e** dentro de cada serviço, e o cabeçalho que o gateway reescreve |
+| Testar sistema concorrente | 200 threads contra PostgreSQL, Redis e RabbitMQ reais via Testcontainers |
+| Armadilhas de ORM | `Persistable`, id atribuído, e a diferença entre `persist` e `merge` |
+
+E também sobre o que **não** foi feito: [limitações conscientes](#limitações-conscientes) lista as
+escolhas de escopo, cada uma com o que mudaria em produção.
 
 ---
 
@@ -277,6 +345,26 @@ cd frontend && npm test       # frontend
 
 ---
 
+## O que ficou de aprendizado
+
+A parte útil de um projeto de estudo é o que ele derruba. Cinco coisas que eu supunha, e que o
+código corrigiu:
+
+- **`save()` do Spring Data não é `INSERT`.** Com id atribuído ele executa `merge`, e sob
+  concorrência isso chegou a apagar reservas já contabilizadas. É o
+  [bug de 70 ingressos](#o-bug-que-o-teste-pegou).
+- **Lock distribuído não é garantia de correção — é otimização.** Ele reduz contenção. Se for a
+  única defesa, a correção cai junto com o Redis. Foi essa percepção que gerou o teste com o lock
+  desligado, e ele é a peça de que mais me orgulho no repositório.
+- **`@Transactional` não alcança o broker.** Publicar no RabbitMQ dentro da transação *parece*
+  atômico e não é: o commit pode falhar depois da mensagem já ter saído. Daí o outbox.
+- **Entrega "ao menos uma vez" é problema de quem consome.** O produtor não fecha essa janela sem
+  commit distribuído, então quem trata duplicata é o consumidor.
+- **Banco em memória não testa isolamento.** H2 não reproduz o comportamento do PostgreSQL sob
+  concorrência — que é exatamente o objeto do teste. Por isso Testcontainers em tudo.
+
+---
+
 ## Limitações conscientes
 
 Escolhas de escopo, não descuidos. Todas estão registradas com justificativa em
@@ -329,9 +417,9 @@ código de negócio, e atualizado a cada fase:
 - **32 riscos técnicos**, cada um com o que se fez a respeito
 - **Tabela de decisões** — cada escolha com a justificativa e a alternativa recusada
 
-O projeto foi construído em nove fases, uma por Pull Request, cada uma com o seu checkpoint.
-O [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)
-mostra o raciocínio de cada etapa.
+Cada uma das nove fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
+assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)
+tem a resposta por etapa — inclusive as decisões que foram revistas no meio do caminho.
 
 ---
 
