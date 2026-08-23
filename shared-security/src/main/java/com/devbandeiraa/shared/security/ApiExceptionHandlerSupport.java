@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -104,8 +105,24 @@ public abstract class ApiExceptionHandlerSupport {
                 status.value(), codigo, mensagem, requisicao.getRequestURI(), traceId));
     }
 
-    /** Curto de proposito: serve para achar a linha no log, nao para ser globalmente unico. */
+    /**
+     * O identificador que vai para o cliente no corpo do erro.
+     *
+     * <p>Prefere o {@code X-Request-Id} da requisicao, posto no MDC pelo
+     * {@link CorrelacaoServletFilter}. Assim o id que a pessoa ve na tela e exatamente o mesmo que
+     * aparece nos logs do gateway, deste servico e de qualquer outro que a requisicao tenha
+     * atravessado — um valor so para procurar, em vez de um por servico.
+     *
+     * <p>O sorteio local sobrou como rede de seguranca para o caso de o filtro nao ter rodado, o
+     * que acontece em teste de unidade que instancia o tratador diretamente. Devolver algo sempre
+     * importa: um {@code traceId} nulo no corpo do erro deixaria o cliente sem nada para informar
+     * ao suporte.
+     */
     protected String gerarTraceId() {
+        String correlacao = MDC.get(CorrelacaoDeRequisicao.CHAVE_MDC);
+        if (correlacao != null) {
+            return correlacao;
+        }
         return UUID.randomUUID().toString().substring(0, 8);
     }
 }

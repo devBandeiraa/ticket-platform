@@ -4,7 +4,6 @@ import com.devbandeiraa.shared.security.ApiError;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.http.HttpStatus;
@@ -67,10 +66,5 @@ public class EscritorDeErro {
             // ObjectMapper. Ainda assim, devolver algo e melhor que estourar no meio da escrita.
             return fabrica.wrap(("{\"error\":\"" + codigo + "\"}").getBytes(StandardCharsets.UTF_8));
         }
-    }
-
-    /** Curto de proposito: serve para casar a resposta com a linha de log, nao para ser unico. */
-    public static String gerarTraceId() {
-        return UUID.randomUUID().toString().substring(0, 8);
     }
 }

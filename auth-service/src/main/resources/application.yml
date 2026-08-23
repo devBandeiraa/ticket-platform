@@ -47,6 +47,12 @@ management:
       show-details: always
 
 logging:
+  # Prefixa cada linha com o X-Request-Id da requisicao, posto no MDC pelo CorrelacaoServletFilter.
+  # `pattern.correlation` e um encaixe que o Boot ja reserva dentro do padrao padrao: preenche-lo
+  # evita redefinir data, nivel e thread so para acrescentar um campo. O `:-` deixa o campo vazio
+  # fora de uma requisicao, como nos logs de subida.
+  pattern:
+    correlation: "[%X{requestId:-}] "
   level:
     com.devbandeiraa.authservice: DEBUG
 

@@ -1,5 +1,6 @@
 package com.devbandeiraa.apigateway.web;
 
+import com.devbandeiraa.apigateway.correlacao.CorrelacaoFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -49,7 +50,7 @@ public class CorpoDeLimiteExcedidoFilter implements GlobalFilter, Ordered {
                     return super.setComplete();
                 }
 
-                String traceId = EscritorDeErro.gerarTraceId();
+                String traceId = CorrelacaoFilter.idDa(troca);
                 log.warn("traceId={} limite excedido em {}",
                         traceId, troca.getRequest().getPath().value());
 
@@ -78,6 +79,6 @@ public class CorpoDeLimiteExcedidoFilter implements GlobalFilter, Ordered {
      */
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE + 1;
+        return Ordered.HIGHEST_PRECEDENCE + 2;
     }
 }

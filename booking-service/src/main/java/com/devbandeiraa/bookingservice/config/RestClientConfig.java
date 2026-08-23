@@ -1,8 +1,11 @@
 package com.devbandeiraa.bookingservice.config;
 
 import com.devbandeiraa.bookingservice.client.EventServiceProperties;
+import com.devbandeiraa.shared.security.CorrelacaoDeRequisicao;
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpRequest;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
@@ -34,6 +37,28 @@ public class RestClientConfig {
         return builder
                 .baseUrl(propriedades.url())
                 .requestFactory(fabrica)
+                .requestInitializer(RestClientConfig::propagarCorrelacao)
                 .build();
+    }
+
+    /**
+     * Repassa o {@code X-Request-Id} adiante, para o event-service registrar os proprios logs sob
+     * o mesmo identificador.
+     *
+     * <p>Esta e a unica chamada HTTP entre servicos do projeto, e portanto o unico ponto em que a
+     * corrente de correlacao poderia se partir. Sem esta linha, o gateway e o booking-service
+     * compartilhariam um id e o event-service inventaria outro — e a investigacao de uma reserva
+     * que falhou na hidratacao do estoque, que e exatamente onde esta chamada acontece, pararia na
+     * fronteira entre os dois servicos.
+     *
+     * <p>Ler do MDC funciona porque {@code RestClient} e sincrono: a chamada sai na mesma thread
+     * que atende a requisicao, onde o {@code CorrelacaoServletFilter} ja gravou o id. Fosse
+     * assincrono, o valor teria que ser capturado antes e carregado explicitamente.
+     */
+    private static void propagarCorrelacao(HttpRequest requisicao) {
+        String id = MDC.get(CorrelacaoDeRequisicao.CHAVE_MDC);
+        if (id != null) {
+            requisicao.getHeaders().set(CorrelacaoDeRequisicao.CABECALHO, id);
+        }
     }
 }

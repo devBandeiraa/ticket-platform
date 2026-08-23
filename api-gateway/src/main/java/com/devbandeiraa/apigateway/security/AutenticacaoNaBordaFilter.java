@@ -1,5 +1,6 @@
 package com.devbandeiraa.apigateway.security;
 
+import com.devbandeiraa.apigateway.correlacao.CorrelacaoFilter;
 import com.devbandeiraa.apigateway.web.EscritorDeErro;
 import com.devbandeiraa.shared.security.AuthenticatedUser;
 import com.devbandeiraa.shared.security.JwtTokenReader;
@@ -71,7 +72,7 @@ public class AutenticacaoNaBordaFilter implements GlobalFilter, Ordered {
         } catch (JwtException | IllegalArgumentException falha) {
             // IllegalArgumentException cobre o token bem assinado mas com claims impossiveis —
             // um `sub` que nao e UUID, um `role` que nao existe no enum.
-            String traceId = EscritorDeErro.gerarTraceId();
+            String traceId = CorrelacaoFilter.idDa(troca);
             log.debug("traceId={} token recusado em {}: {}",
                     traceId, troca.getRequest().getPath().value(), falha.getMessage());
 
@@ -102,11 +103,14 @@ public class AutenticacaoNaBordaFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * Primeiro de todos. O rate limiter e um filtro de rota, portanto de ordem maior, e so assim
-     * ele encontra o {@code X-User-Id} ja preenchido para usar como chave.
+     * Logo apos o {@link com.devbandeiraa.apigateway.correlacao.CorrelacaoFilter}, que precisa ter
+     * atribuido o id da requisicao antes de um token recusado virar log e resposta de erro.
+     *
+     * <p>Ainda bem antes do rate limiter, que e filtro de rota e portanto de ordem muito maior: e
+     * assim que ele encontra o {@code X-User-Id} ja preenchido para usar como chave.
      */
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE;
+        return Ordered.HIGHEST_PRECEDENCE + 1;
     }
 }
