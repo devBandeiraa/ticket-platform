@@ -1,5 +1,6 @@
 package com.devbandeiraa.apigateway.support;
 
+import com.devbandeiraa.shared.security.CorrelacaoDeRequisicao;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.TimeUnit;
@@ -65,10 +66,20 @@ public final class ServicosDeMentira {
         // Um dispatcher fixo dispensa enfileirar uma resposta por requisicao. Como nenhum teste
         // aqui depende do corpo devolvido, o interesse esta sempre no que chegou, e nao no que
         // voltou, um 200 vazio basta.
+        //
+        // A excecao e o X-Request-Id, devolvido tal como os servicos reais fazem desde que ganharam
+        // o CorrelacaoServletFilter. Sem esta linha o dublê seria mais bonzinho que a realidade, e
+        // o teste de cabecalho duplicado na resposta passaria sem nunca exercitar o caso.
         servidor.setDispatcher(new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest requisicao) {
-                return new MockResponse().setResponseCode(200);
+                MockResponse resposta = new MockResponse().setResponseCode(200);
+
+                String correlacao = requisicao.getHeader(CorrelacaoDeRequisicao.CABECALHO);
+                if (correlacao != null) {
+                    resposta.setHeader(CorrelacaoDeRequisicao.CABECALHO, correlacao);
+                }
+                return resposta;
             }
         });
 

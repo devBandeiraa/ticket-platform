@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -53,7 +54,13 @@ public class SecurityErrorResponder implements AuthenticationEntryPoint, AccessD
             HttpServletRequest requisicao, HttpServletResponse resposta,
             int status, String codigo, String mensagem) throws IOException {
 
-        String traceId = UUID.randomUUID().toString().substring(0, 8);
+        // Mesma regra do ApiExceptionHandlerSupport: o id da requisicao quando ele existe, sorteio
+        // local quando nao. Um 401 e exatamente o erro que a pessoa relata ao suporte, e ele
+        // precisa carregar o mesmo identificador que os logs do gateway registraram.
+        String correlacao = MDC.get(CorrelacaoDeRequisicao.CHAVE_MDC);
+        String traceId = correlacao != null
+                ? correlacao
+                : UUID.randomUUID().toString().substring(0, 8);
 
         resposta.setStatus(status);
         resposta.setContentType(MediaType.APPLICATION_JSON_VALUE);

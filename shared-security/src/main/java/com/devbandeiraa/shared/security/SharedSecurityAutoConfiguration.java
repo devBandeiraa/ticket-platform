@@ -5,8 +5,10 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 
 /**
  * Registra as pecas de seguranca compartilhadas assim que o modulo entra no classpath.
@@ -56,6 +58,26 @@ public class SharedSecurityAutoConfiguration {
         @ConditionalOnMissingBean
         SecurityErrorResponder securityErrorResponder(ObjectMapper objectMapper) {
             return new SecurityErrorResponder(objectMapper);
+        }
+
+        /**
+         * Registrado como bean, ao contrario do {@link JwtAuthenticationFilter}.
+         *
+         * <p>A diferenca e proposital. Aquele precisa de um lugar especifico na cadeia do Spring
+         * Security, que so cada servico conhece; este nao tem nada a decidir — vale para toda
+         * requisicao, sem excecao, e nao ha servico algum que queira correlacao em parte das rotas.
+         *
+         * <p>O {@code FilterRegistrationBean} existe para poder fixar a ordem. Primeiro de todos:
+         * um erro de autenticacao acontece antes de qualquer controller, e sem isto seria
+         * justamente a falha mais dificil de investigar a unica a sair do log sem identificacao.
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        FilterRegistrationBean<CorrelacaoServletFilter> correlacaoServletFilter() {
+            FilterRegistrationBean<CorrelacaoServletFilter> registro =
+                    new FilterRegistrationBean<>(new CorrelacaoServletFilter());
+            registro.setOrder(Ordered.HIGHEST_PRECEDENCE);
+            return registro;
         }
     }
 }
