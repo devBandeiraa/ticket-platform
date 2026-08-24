@@ -28,6 +28,7 @@
 		<module>event-service</module>
 		<module>booking-service</module>
 		<module>notification-service</module>
+		<module>payment-simulator</module>
 		<module>api-gateway</module>
 	</modules>
 

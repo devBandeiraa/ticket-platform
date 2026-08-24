@@ -88,6 +88,15 @@ booking:
     connect-timeout: ${EVENT_SERVICE_CONNECT_TIMEOUT:2s}
     read-timeout: ${EVENT_SERVICE_READ_TIMEOUT:3s}
 
+  pagamento:
+    url: ${PAYMENT_SERVICE_URL:http://localhost:8085}
+    # Mais folgados que os do event-service, e nao por descuido: autorizar uma cobranca envolve um
+    # terceiro que legitimamente demora centenas de milissegundos. Copiar os 3s de leitura de la
+    # faria o retry disparar contra cobrancas que teriam passado, e cada tentativa a mais e uma
+    # chance a mais de cobrar em duplicidade caso a idempotencia falhe do outro lado.
+    connect-timeout: ${PAYMENT_CONNECT_TIMEOUT:2s}
+    read-timeout: ${PAYMENT_READ_TIMEOUT:5s}
+
   lock:
     # Uma ordem de grandeza acima da transacao protegida (um UPDATE e um INSERT).
     ttl: ${BOOKING_LOCK_TTL:3s}
@@ -96,14 +105,94 @@ booking:
     # colidir em bloco.
     espera-entre-tentativas: ${BOOKING_LOCK_ESPERA:50ms}
 
+# Resiliencia das duas chamadas que saem deste servico.
+#
+# Sao dois vizinhos com naturezas diferentes, e por isso duas defesas diferentes. O event-service e
+# nosso, roda ao lado e responde rapido: quando falha, tende a continuar falhando, e insistir so
+# empilha requisicoes sobre um servico ja doente — dai circuit breaker. O provedor de pagamento e
+# um terceiro atras da internet, onde a falha isolada e transitoria e o caso comum — dai retry.
+#
+# Aplicar o inverso seria pior que nao aplicar nada: retry contra um servico caido multiplicaria a
+# carga sobre ele por quatro, e circuit breaker num provedor de pagamento recusaria vendas por
+# causa de um pico de latencia que teria passado sozinho.
+resilience4j:
+  circuitbreaker:
+    instances:
+      event-service:
+        # Contagem, e nao janela de tempo: a hidratacao acontece uma vez por evento, entao o
+        # volume e baixo e irregular. Numa janela por tempo, um minuto com duas chamadas das quais
+        # uma falhou daria 50% de falha e abriria o circuito sobre quase nenhuma evidencia.
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: ${CB_EVENT_JANELA:10}
+        minimum-number-of-calls: ${CB_EVENT_MINIMO:5}
+        failure-rate-threshold: ${CB_EVENT_LIMIAR:50}
+        # Curto de proposito. E o intervalo entre o circuito abrir e ele deixar passar as
+        # primeiras chamadas de teste, e portanto o tempo que a demonstracao leva mostrando uma
+        # tela parada. Num ambiente real seria bem maior.
+        wait-duration-in-open-state: ${CB_EVENT_ESPERA:10s}
+        permitted-number-of-calls-in-half-open-state: 3
+        # Sem isto, o circuito so sai de aberto quando alguem tenta uma chamada. Num evento com
+        # pouco trafego ele ficaria aberto muito depois de o servico ter voltado.
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+        # Este flag evita um tiro no pe. Com ele em `true`, um circuito aberto faria o
+        # /actuator/health devolver DOWN — e como e esse mesmo endereco que o healthcheck do
+        # compose consulta, o Docker marcaria o booking-service como unhealthy e o reiniciaria.
+        #
+        # O servico estaria sendo morto justamente por ter se defendido corretamente da queda de
+        # outro. Pior ainda numa demonstracao, em que a ideia e derrubar o event-service e observar
+        # o circuito abrir: o container que se quer observar seria o primeiro a cair.
+        #
+        # Com `false`, o estado do circuito continua visivel dentro do corpo do /health, mas nao
+        # define o status geral.
+        allow-health-indicator-to-fail: false
+        # A configuracao mais importante deste bloco. Um 404 significa que o event-service esta
+        # saudavel e respondeu depressa; conta-lo como falha faria um punhado de usuarios digitando
+        # ids errados derrubar a hidratacao de todos os eventos legitimos.
+        ignore-exceptions:
+          - com.devbandeiraa.bookingservice.exception.EventoNaoDisponivelException
+        record-exceptions:
+          - com.devbandeiraa.bookingservice.exception.EventServiceIndisponivelException
+
+  retry:
+    instances:
+      pagamento:
+        # Quatro no total: a original e tres repeticoes. Com o backoff abaixo, o pior caso soma
+        # cerca de 1,4s de espera — dentro do que alguem tolera olhando para um botao de pagar.
+        max-attempts: ${RETRY_PAGAMENTO_TENTATIVAS:4}
+        wait-duration: ${RETRY_PAGAMENTO_ESPERA:200ms}
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        # Jitter. Sem ele, todas as tentativas que falharam juntas voltam juntas, exatamente 200ms
+        # depois, e o provedor que estava se recuperando leva a mesma rajada de novo. E o efeito
+        # manada que o backoff sozinho nao resolve.
+        enable-randomized-wait: true
+        randomized-wait-factor: 0.5
+        retry-exceptions:
+          - com.devbandeiraa.bookingservice.exception.PagamentoIndisponivelException
+        # Recusa e resposta, nao falha. Repeti-la gastaria quatro tentativas para chegar a mesma
+        # negativa, com o usuario esperando por nada.
+        ignore-exceptions:
+          - com.devbandeiraa.bookingservice.exception.PagamentoRecusadoException
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # `circuitbreakers` publica o estado atual de cada instancia, que e o que o painel /status
+        # do frontend consome e o que se aponta numa demonstracao. `circuitbreakerevents` e
+        # `retryevents` guardam o historico das ultimas transicoes — util para explicar por que o
+        # circuito abriu, em vez de apenas mostrar que abriu.
+        include: health,info,circuitbreakers,circuitbreakerevents,retries,retryevents
   endpoint:
     health:
       show-details: always
+  health:
+    circuitbreakers:
+      # Faz o estado do circuito aparecer dentro do /actuator/health. Deliberadamente ligado: um
+      # circuito aberto e informacao de saude legitima, e sem isto o servico se declararia
+      # perfeitamente saudavel enquanto recusa toda hidratacao de estoque.
+      enabled: true
 
 logging:
   # Prefixa cada linha com o X-Request-Id da requisicao, posto no MDC pelo CorrelacaoServletFilter.

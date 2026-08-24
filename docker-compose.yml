@@ -201,6 +201,7 @@ services:
       # porta de entrada de quem vem de fora, e por ele so o transito interno ganharia um
       # salto de rede e um ponto de falha a mais.
       EVENT_SERVICE_URL: http://event-service:8082
+      PAYMENT_SERVICE_URL: http://payment-simulator:8085
     depends_on:
       postgres:
         condition: service_healthy
@@ -208,6 +209,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      # `service_started` como o event-service, e pelo mesmo motivo: o provedor so e chamado no
+      # pagamento, e o retry ja cobre a janela em que ele ainda esta subindo.
+      payment-simulator:
+        condition: service_started
       # Nao e `service_healthy`: a hidratacao do estoque so acontece na primeira reserva de
       # cada evento, e falhar ate la nao impede o booking-service de subir.
       event-service:
@@ -215,6 +220,28 @@ services:
     healthcheck:
       <<: *healthcheck-java
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8083/actuator/health || exit 1"]
+
+  # Terceiro de mentira: instavel de proposito, para o retry do booking-service ter contra o que
+  # se defender. Nao e publicado pelo gateway — so responde de dentro da rede, como um provedor
+  # externo responderia apenas ao servidor e nunca ao navegador.
+  payment-simulator:
+    <<: *servico-java
+    container_name: ticket-payment
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.servico
+      args:
+        MODULO: payment-simulator
+        PORTA: 8085
+    environment:
+      SERVER_PORT: 8085
+      # Alto de proposito: com 2% seria preciso gravar cinquenta pagamentos para o retry aparecer
+      # uma vez. Zere as duas variaveis para rodar sem instabilidade.
+      PAGAMENTO_FALHA_PERCENTUAL: ${PAGAMENTO_FALHA_PERCENTUAL:-30}
+      PAGAMENTO_RECUSA_PERCENTUAL: ${PAGAMENTO_RECUSA_PERCENTUAL:-5}
+    healthcheck:
+      <<: *healthcheck-java
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8085/actuator/health || exit 1"]
 
   notification-service:
     <<: *servico-java

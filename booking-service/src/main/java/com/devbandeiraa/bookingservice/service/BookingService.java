@@ -1,5 +1,7 @@
 package com.devbandeiraa.bookingservice.service;
 
+import com.devbandeiraa.bookingservice.client.Autorizacao;
+import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.domain.EventInventory;
@@ -10,14 +12,11 @@ import com.devbandeiraa.bookingservice.exception.ChaveDeIdempotenciaInvalidaExce
 import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.exception.TransicaoDeReservaInvalidaException;
 import com.devbandeiraa.bookingservice.lock.DistributedLock;
-import com.devbandeiraa.bookingservice.messaging.BookingConfirmedEvent;
-import com.devbandeiraa.bookingservice.messaging.OutboxRegistrar;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSpecifications;
 import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
 import com.devbandeiraa.shared.security.AuthenticatedUser;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -50,7 +49,8 @@ public class BookingService {
     private final EventInventoryRepository estoqueRepository;
     private final EstoqueService estoqueService;
     private final ReservaTransacional reservaTransacional;
-    private final OutboxRegistrar outboxRegistrar;
+    private final ConfirmacaoTransacional confirmacaoTransacional;
+    private final PagamentoClient pagamentoClient;
     private final DistributedLock lock;
     private final ReservaProperties propriedades;
 
@@ -58,14 +58,16 @@ public class BookingService {
                           EventInventoryRepository estoqueRepository,
                           EstoqueService estoqueService,
                           ReservaTransacional reservaTransacional,
-                          OutboxRegistrar outboxRegistrar,
+                          ConfirmacaoTransacional confirmacaoTransacional,
+                          PagamentoClient pagamentoClient,
                           DistributedLock lock,
                           ReservaProperties propriedades) {
         this.bookingRepository = bookingRepository;
         this.estoqueRepository = estoqueRepository;
         this.estoqueService = estoqueService;
         this.reservaTransacional = reservaTransacional;
-        this.outboxRegistrar = outboxRegistrar;
+        this.confirmacaoTransacional = confirmacaoTransacional;
+        this.pagamentoClient = pagamentoClient;
         this.lock = lock;
         this.propriedades = propriedades;
     }
@@ -175,35 +177,83 @@ public class BookingService {
     // ---------- transicoes de estado ----------
 
     /**
-     * Pagamento simulado: {@code PENDING} para {@code CONFIRMED}.
+     * Pagamento: cobra do provedor externo e, se a cobranca passar, leva a reserva de
+     * {@code PENDING} a {@code CONFIRMED}.
      *
-     * <p>A transicao inteira acontece dentro do {@code UPDATE} condicional, que exige status
-     * pendente <em>e</em> prazo ainda valido. E isso que resolve a corrida com o job de
-     * expiracao: se o job chegar primeiro, o pagamento afeta zero linhas; se o pagamento chegar
-     * primeiro, o job e que nao encontra mais a reserva pendente. Nunca os dois.
+     * <p>Tres etapas, e a ordem e o assunto inteiro deste metodo:
      *
-     * <p>Pagar o que ja esta pago nao e erro — devolve a mesma reserva. Um duplo clique no botao
-     * de pagamento nao deve produzir uma tela de falha para uma operacao que deu certo.
+     * <ol>
+     *   <li><strong>Recusa antecipada.</strong> Reserva ja paga devolve a si mesma sem cobrar de
+     *       novo; reserva que nao esta mais pendente falha antes de qualquer cobranca. Nao elimina
+     *       a corrida com o job de expiracao — apenas evita cobrar no caso, comum, em que ja se
+     *       sabe que a confirmacao nao vai acontecer.
+     *   <li><strong>Cobranca, fora de transacao.</strong> Ver {@link ConfirmacaoTransacional} para
+     *       o motivo: uma chamada de rede com retry dentro de uma transacao seguraria uma conexao
+     *       do pool por segundos, e sob carga isso derruba o banco para todo mundo.
+     *   <li><strong>Confirmacao condicional.</strong> O {@code UPDATE} exige status pendente
+     *       <em>e</em> prazo valido, e continua sendo quem decide a corrida com o job.
+     * </ol>
+     *
+     * <h2>A janela que sobra</h2>
+     *
+     * <p>Entre a cobranca e a confirmacao existe um intervalo real, da duracao da chamada ao
+     * provedor. Se o prazo vencer exatamente ali, o dinheiro saiu e a reserva nao pode mais ser
+     * confirmada. Fechar essa janela de vez exigiria um estado {@code PAYING} e um saga completo;
+     * o caminho escolhido foi compensar — estornar a cobranca e recusar o pagamento — que resolve
+     * o caso concreto sem uma maquina de estados a mais.
      */
-    @Transactional
     public BookingResponse pagar(UUID id, AuthenticatedUser solicitante) {
         Booking reserva = carregarVisivelPara(id, solicitante);
-        Instant agora = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
-        if (bookingRepository.confirmar(id, agora) == 0) {
+        if (reserva.getStatus() == BookingStatus.CONFIRMED) {
+            // Duplo clique no botao de pagar. Devolver a reserva sem chamar o provedor evita uma
+            // ida a rede que o provedor descartaria de todo modo pela chave de idempotencia.
+            log.debug("pagamento repetido da reserva {}: ja estava confirmada", id);
+            return BookingResponse.de(reserva);
+        }
+
+        if (!reserva.estaPendente()) {
             return recusarPagamento(id);
         }
 
-        Booking confirmada = recarregar(id);
+        Autorizacao autorizacao = pagamentoClient.autorizar(id, reserva.getTotalPrice());
 
-        // Na MESMA transacao que confirmou a reserva. Este e o ponto inteiro da outbox: publicar
-        // no RabbitMQ aqui deixaria uma notificacao de pagamento sem pagamento caso o commit
-        // falhasse; publicar depois do commit deixaria a reserva paga sem que ninguem soubesse,
-        // caso a publicacao falhasse. Gravado junto, os dois fatos existem ou nao existem.
-        outboxRegistrar.registrarConfirmacao(BookingConfirmedEvent.de(confirmada));
+        return confirmacaoTransacional.confirmar(id, autorizacao)
+                .orElseGet(() -> estornarERecusar(id, autorizacao));
+    }
 
-        log.info("reserva paga: id={} usuario={}", id, reserva.getUserId());
-        return BookingResponse.de(confirmada);
+    /**
+     * A cobranca passou, mas a reserva ja nao podia mais ser confirmada.
+     *
+     * <p>O job de expiracao venceu a corrida durante a chamada ao provedor. Deixar assim
+     * significaria dinheiro cobrado sem ingresso, que e bem pior do que a venda perdida: o estorno
+     * vem primeiro, e so depois a recusa e devolvida ao usuario.
+     *
+     * <p>O estorno e melhor esforco de proposito. Se ele tambem falhar, o comprovante fica
+     * registrado em log como pendencia — prender a resposta do usuario tentando de novo nao
+     * mudaria o que ele ve, e fingir que o estorno sempre funciona seria pior que admitir o caso.
+     */
+    private BookingResponse estornarERecusar(UUID id, Autorizacao autorizacao) {
+        Booking atual = recarregar(id);
+
+        // Antes de estornar, e preciso descartar um segundo motivo para o UPDATE ter afetado zero
+        // linhas: outra requisicao de pagamento da MESMA reserva ter confirmado primeiro.
+        //
+        // O detalhe que torna isso perigoso e a propria idempotencia. Como a chave deriva do id da
+        // reserva, as duas requisicoes concorrentes receberam o MESMO comprovante do provedor —
+        // entao estornar aqui cancelaria exatamente a cobranca que acabou de pagar o ingresso,
+        // deixando uma reserva confirmada e sem pagamento.
+        if (atual.getStatus() == BookingStatus.CONFIRMED) {
+            log.debug("reserva {} confirmada por uma requisicao concorrente; nada a estornar", id);
+            return BookingResponse.de(atual);
+        }
+
+        log.warn("reserva {} nao pode mais ser confirmada: estornando o comprovante {}",
+                id, autorizacao.authorizationCode());
+
+        pagamentoClient.estornar(id, autorizacao.authorizationCode());
+
+        return recusarPagamento(id);
     }
 
     /**

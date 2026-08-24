@@ -17,6 +17,10 @@
 	<properties>
 		<java.version>17</java.version>
 		<springdoc.version>2.8.17</springdoc.version>
+		<resilience4j.version>2.3.0</resilience4j.version>
+		<!-- Declarada porque, diferente do api-gateway, este modulo nao importa a BOM do Spring
+		     Cloud — que e de onde aquele tira a versao do mockwebserver sem precisar dizer. -->
+		<mockwebserver.version>4.12.0</mockwebserver.version>
 	</properties>
 
 	<dependencies>
@@ -55,6 +59,28 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
+		<!--
+			Circuit breaker na chamada ao event-service e retry na chamada ao payment-simulator.
+
+			A variante `spring-boot3` e a que registra os endpoints do Actuator e le a
+			configuracao do application.yml; a biblioteca nua exigiria montar cada instancia em
+			codigo. A versao vem declarada porque o Resilience4j nao faz parte da BOM do Boot.
+		-->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>${resilience4j.version}</version>
+		</dependency>
+		<!--
+			As anotacoes do Resilience4j sao interceptadas por proxy, e sem AOP no classpath elas
+			simplesmente nao fazem nada — sem erro, sem aviso. Declarado explicitamente para que a
+			dependencia esteja visivel a quem le o POM, em vez de chegar por transitividade.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
@@ -105,6 +131,20 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>rabbitmq</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!--
+			Servidor HTTP de mentira no lugar do event-service e do provedor de pagamento.
+
+			Um mock de objeto nao serviria para os testes de resiliencia: o que se precisa
+			verificar e quantas requisicoes chegaram do outro lado do fio e com quais cabecalhos —
+			se o retry realmente repetiu, se a chave de idempotencia se manteve, se o circuito
+			aberto de fato deixou de chamar. Nada disso e observavel substituindo o cliente.
+		-->
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>mockwebserver</artifactId>
+			<version>${mockwebserver.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<!-- Documentacao OpenAPI gerada a partir dos proprios controllers. A versao vem

@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.devbandeiraa.bookingservice.client.Autorizacao;
 import com.devbandeiraa.bookingservice.client.EventClient;
+import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.domain.OutboxMessage;
@@ -78,6 +81,14 @@ class OutboxIntegrationTest {
     @MockitoBean
     private EventClient eventClient;
 
+    /**
+     * O provedor de pagamento e um terceiro, e o que se verifica aqui e a outbox — que a mensagem
+     * seja gravada na mesma transacao da confirmacao. Deixa-lo real faria estes testes falharem
+     * por conexao recusada, por um motivo sem nenhuma relacao com o que eles medem.
+     */
+    @MockitoBean
+    private PagamentoClient pagamentoClient;
+
     @MockitoSpyBean
     private RabbitTemplate rabbitTemplate;
 
@@ -90,6 +101,11 @@ class OutboxIntegrationTest {
         outboxRepository.deleteAllInBatch();
         bookingRepository.deleteAllInBatch();
         estoqueRepository.deleteAllInBatch();
+
+        // Provedor sempre autorizando: o desfecho da cobranca nao e o objeto destes testes.
+        when(pagamentoClient.autorizar(any(UUID.class), any(BigDecimal.class)))
+                .thenAnswer(chamada ->
+                        new Autorizacao(chamada.getArgument(0), "AUT-TESTE", false));
 
         eventoId = UUID.randomUUID();
         usuarioId = UUID.randomUUID();

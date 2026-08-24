@@ -80,6 +80,44 @@ public class GlobalExceptionHandler extends ApiExceptionHandlerSupport {
                 requisicao, traceId);
     }
 
+    /**
+     * O provedor de pagamento avaliou a cobranca e a negou.
+     *
+     * <p>{@code 402 Payment Required} e nao {@code 409}: e a unica situacao em que este status
+     * significa literalmente o que diz. O frontend precisa distinguir isso de um estoque esgotado
+     * — aqui o ingresso continua reservado, e trocar o meio de pagamento resolve.
+     */
+    @ExceptionHandler(PagamentoRecusadoException.class)
+    public ResponseEntity<ApiError> tratarPagamentoRecusado(
+            PagamentoRecusadoException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.info("[{}] {}", traceId, excecao.getMessage());
+
+        return responder(HttpStatus.PAYMENT_REQUIRED, "PAYMENT_DECLINED",
+                "O pagamento nao foi autorizado. Verifique os dados e tente novamente.",
+                requisicao, traceId);
+    }
+
+    /**
+     * As tentativas de cobranca se esgotaram sem resposta do provedor.
+     *
+     * <p>Chega aqui somente depois de o retry ter falhado quatro vezes com backoff — nao e a
+     * primeira falha. A reserva continua pendente e dentro do prazo, e por isso a mensagem manda
+     * tentar de novo: e verdade, e o estoque ainda esta seguro.
+     */
+    @ExceptionHandler(PagamentoIndisponivelException.class)
+    public ResponseEntity<ApiError> tratarPagamentoIndisponivel(
+            PagamentoIndisponivelException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.error("[{}] {}", traceId, excecao.getMessage(), excecao);
+
+        return responder(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_PROVIDER_UNAVAILABLE",
+                "O provedor de pagamento nao respondeu. Sua reserva segue valida; tente novamente.",
+                requisicao, traceId);
+    }
+
     @ExceptionHandler(ReservaNaoEncontradaException.class)
     public ResponseEntity<ApiError> tratarReservaNaoEncontrada(
             ReservaNaoEncontradaException excecao, HttpServletRequest requisicao) {
