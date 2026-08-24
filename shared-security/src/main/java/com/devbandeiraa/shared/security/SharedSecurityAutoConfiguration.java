@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -78,6 +79,31 @@ public class SharedSecurityAutoConfiguration {
                     new FilterRegistrationBean<>(new CorrelacaoServletFilter());
             registro.setOrder(Ordered.HIGHEST_PRECEDENCE);
             return registro;
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        ObservacaoSemActuator observacaoSemActuator() {
+            return new ObservacaoSemActuator();
+        }
+    }
+
+    /**
+     * A contraparte reativa, para o api-gateway.
+     *
+     * <p>A condicao aqui e o <em>tipo de aplicacao</em>, e nao a presenca de uma classe como na
+     * configuracao acima. O motivo e que nao serviria: os dois contextos de observacao moram no
+     * mesmo {@code spring-web}, entao condicionar a classe reativa daria verdadeiro tambem numa
+     * aplicacao servlet, e as duas se registrariam — uma delas sem nunca casar com contexto algum.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
+    static class ConfiguracaoReativa {
+
+        @Bean
+        @ConditionalOnMissingBean
+        ObservacaoSemActuatorReativa observacaoSemActuatorReativa() {
+            return new ObservacaoSemActuatorReativa();
         }
     }
 }
