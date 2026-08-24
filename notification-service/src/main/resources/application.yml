@@ -15,6 +15,11 @@ spring:
 
     listener:
       simple:
+        # Le o contexto de trace dos cabecalhos da mensagem e continua a arvore que comecou na
+        # requisicao de pagamento, do outro lado do broker. Sem isto, cada notificacao apareceria
+        # no Jaeger como um evento solto — visivel, mas sem a compra que o causou, que e
+        # justamente a ligacao que se quer enxergar.
+        observation-enabled: true
         # Sem isso, uma mensagem que falha volta para a fila e e reentregue imediatamente, em
         # laco: o mesmo defeito derrubaria a mensagem de novo, para sempre, consumindo CPU e
         # impedindo as demais de serem tratadas. Com requeue desligado, a mensagem recusada vai
@@ -53,6 +58,27 @@ management:
     health:
       show-details: always
 
+  # Tracing distribuido. Ver o comentario no booking-service para a decisao de amostragem.
+  tracing:
+    sampling:
+      probability: ${TRACING_AMOSTRAGEM:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
 logging:
+  # Prefixa cada linha com dois identificadores: o X-Request-Id, posto no MDC pelo
+  # CorrelacaoServletFilter, e o traceId do OpenTelemetry, posto pelo Micrometer Tracing.
+  #
+  # Sao dois porque servem a momentos diferentes. O requestId e o que aparece na tela de erro e
+  # que o usuario consegue ditar; o traceId e o que se cola na busca do Jaeger. Com os dois na
+  # mesma linha, ir de um ao outro e um grep.
+  #
+  # `pattern.correlation` e um encaixe que o Boot ja reserva dentro do padrao padrao: preenche-lo
+  # evita redefinir data, nivel e thread so para acrescentar campos. Preencher e tambem o que
+  # impede o Boot de trocar este campo pelo formato proprio dele assim que o tracing entra no
+  # classpath. O `:-` deixa cada campo vazio fora do respectivo contexto.
+  pattern:
+    correlation: "[%X{requestId:-} %X{traceId:-}] "
   level:
     com.devbandeiraa.notificationservice: DEBUG
