@@ -159,7 +159,7 @@ endpoints, em vez de apenas protegê-los.
 
 ## Observabilidade
 
-Três perguntas diferentes, três ferramentas — e a distinção entre elas é o ponto.
+Quatro perguntas diferentes, quatro respostas — e a distinção entre elas é o ponto.
 
 **"Por que *esta* requisição demorou?"** → Jaeger. Um trace por requisição, começando no gateway e
 descendo até o serviço que respondeu. O trace **atravessa a outbox**: a mensagem é gravada dentro da
@@ -167,8 +167,22 @@ transação da compra e publicada segundos depois, por um job, numa thread sem r
 aquela requisição — o contexto viaja numa coluna da própria linha da outbox para que a notificação
 apareça pendurada na árvore da compra, e não numa árvore solta.
 
-**"Como o sistema está *agora*?"** → Grafana, três painéis provisionados a partir de
-[`monitoring/grafana/dashboards`](monitoring/grafana/dashboards):
+**"Está tudo no ar *agora*?"** → a página [`/status`](http://localhost:5173/status) da própria
+aplicação. Um cartão por serviço com up/down, latência média e tempo no ar, mais um indicador de
+cada circuit breaker — atualizando a cada cinco segundos.
+
+Ela **não** fala com o Prometheus. Quem consulta é o gateway, em `GET /api/status`, e devolve o
+resultado já traduzido. Publicar o Prometheus para o navegador entregaria junto o nome de cada
+serviço, cada endpoint e cada métrica interna a quem abrisse o endereço — e o gateway já é o único
+endereço que o navegador conhece nesta plataforma.
+
+Se o Prometheus cair, a página responde **503 dizendo que perdeu a fonte**, em vez de pintar os
+seis serviços de vermelho. São coisas opostas: a segunda leitura mandaria alguém investigar seis
+serviços saudáveis.
+
+**"Por que ficou lento às 14h?"** → Grafana, três painéis provisionados a partir de
+[`monitoring/grafana/dashboards`](monitoring/grafana/dashboards). A página `/status` responde sobre
+o instante; série temporal é outra pergunta, e mora aqui:
 
 | Painel | O que responde |
 |---|---|
@@ -355,8 +369,8 @@ commit distribuído.
 
 ## Testes
 
-**272 no total** — 254 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
-e 18 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
+**283 no total** — 260 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+e 23 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
 | Teste | O que prova |
@@ -373,6 +387,8 @@ banco em memória não o reproduz.
 | `RetryDePagamentoIntegrationTest` | O retry repete de verdade, e as tentativas mantêm a **mesma** chave de idempotência — sem isso o retry cobraria duas vezes |
 | `TraceNaOutboxIntegrationTest` | O contexto de trace sobrevive à travessia da outbox, apesar dos segundos e da troca de thread |
 | `MetricasPrometheusIntegrationTest` | Os nomes de métrica de que os painéis dependem continuam existindo — e o próprio monitoramento fica fora deles |
+| `PainelDeStatusIntegrationTest` | Com o Prometheus fora, o painel responde `503` em vez de pintar os seis serviços de vermelho — e o preflight de CORS é respondido num caminho que não é rota |
+| `Status.test.tsx` | "Sem tráfego" e "0 ms" não são a mesma coisa, e a tela não os confunde |
 
 ```bash
 ./mvnw clean install          # backend — exige Docker, para os Testcontainers
