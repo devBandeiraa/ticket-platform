@@ -63,6 +63,7 @@ export function Layout() {
             {ehAdmin && <Item para="/admin/eventos">Gerenciar</Item>}
             {ehAdmin && <Item para="/admin/reservas">Painel</Item>}
             <Item para="/demo/concorrencia">Concorrencia</Item>
+            <Item para="/status">Status</Item>
           </nav>
 
           <div className="ml-auto flex items-center gap-3">

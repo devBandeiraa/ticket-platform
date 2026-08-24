@@ -113,6 +113,17 @@ servicos:
   event: ${EVENT_SERVICE_URI:http://localhost:8082}
   booking: ${BOOKING_SERVICE_URI:http://localhost:8083}
 
+# Painel /status do frontend.
+#
+# O gateway consulta o Prometheus e devolve o resultado ja traduzido. O navegador nao fala com o
+# Prometheus: publica-lo para a internet so por causa de uma pagina de status entregaria junto o
+# nome de cada servico, cada endpoint e cada metrica interna.
+status:
+  prometheus-url: ${PROMETHEUS_URL:http://localhost:9090}
+  # Teto por consulta. Curto porque a pagina se atualiza a cada poucos segundos: uma resposta que
+  # demora mais que isso chega depois de a proxima ja ter partido.
+  tempo-limite: ${STATUS_TEMPO_LIMITE:3s}
+
 jwt:
   # Mesmo segredo do auth-service. E o que permite ao gateway validar o token na borda sem uma
   # chamada de rede por requisicao — o motivo de o HS256 ter sido escolhido no mapeamento.
