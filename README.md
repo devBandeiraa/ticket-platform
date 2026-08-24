@@ -117,9 +117,16 @@ cd ticket-platform
 docker compose up --build
 ```
 
-Nove containers sobem: PostgreSQL, Redis, RabbitMQ, cinco serviços e o frontend.
+Treze containers sobem: PostgreSQL, Redis, RabbitMQ, Jaeger, Prometheus, Grafana, seis serviços e o
+frontend.
 
-Depois disso → **http://localhost:5173** · admin: `admin@ticket.dev` / `admin@ticket.dev123`
+| Onde | O quê |
+|---|---|
+| **http://localhost:5173** | A aplicação · admin: `admin@ticket.dev` / `admin@ticket.dev123` |
+| **http://localhost:8080/swagger-ui.html** | A documentação da API |
+| **http://localhost:3000** | Grafana, com os três painéis já carregados — não pede login |
+| **http://localhost:16686** | Jaeger, para seguir uma requisição entre os serviços |
+| **http://localhost:9090** | Prometheus, para conferir a coleta e testar uma consulta |
 
 Nenhum `.env` é necessário. Todo valor tem padrão.
 
@@ -147,6 +154,38 @@ chamada real.
 
 Para fechar a documentação num ambiente público, `OPENAPI_ENABLED=false` — que remove os
 endpoints, em vez de apenas protegê-los.
+
+---
+
+## Observabilidade
+
+Três perguntas diferentes, três ferramentas — e a distinção entre elas é o ponto.
+
+**"Por que *esta* requisição demorou?"** → Jaeger. Um trace por requisição, começando no gateway e
+descendo até o serviço que respondeu. O trace **atravessa a outbox**: a mensagem é gravada dentro da
+transação da compra e publicada segundos depois, por um job, numa thread sem relação nenhuma com
+aquela requisição — o contexto viaja numa coluna da própria linha da outbox para que a notificação
+apareça pendurada na árvore da compra, e não numa árvore solta.
+
+**"Como o sistema está *agora*?"** → Grafana, três painéis provisionados a partir de
+[`monitoring/grafana/dashboards`](monitoring/grafana/dashboards):
+
+| Painel | O que responde |
+|---|---|
+| **Visão geral dos serviços** | Quem está no ar, quanto tráfego passa, latência p95 e taxa de erro por serviço |
+| **Resiliência** | Estado de cada circuit breaker ao longo do tempo, chamadas recusadas sem sair pelo fio, e quantos pagamentos só passaram graças ao retry |
+| **Reservas e mensageria** | Disputa pelo lock, reservas que rodaram *sem lock nenhum* com o Redis fora, e o que a outbox publicou ou descartou |
+
+Os painéis são arquivos versionados, não estado dentro de um volume: entram por Pull Request e
+aparecem no diff. Um painel montado pela interface seria um binário invisível.
+
+**"Qual erro o usuário viu?"** → o `X-Request-Id`. O gateway gera um por requisição, propaga para
+todos os serviços e devolve no corpo do erro. Cada linha de log carrega ele **e** o `traceId` do
+OpenTelemetry, lado a lado — o primeiro é o que a pessoa consegue ditar por telefone, o segundo é o
+que se cola na busca do Jaeger. Ir de um ao outro é um `grep`.
+
+Latência é medida em **p95, não em média**. Numa amostra em que 95 requisições levam 20ms e 5 levam
+4s, a média dá 220ms e parece saudável — enquanto uma pessoa a cada vinte espera quatro segundos.
 
 ---
 
@@ -316,7 +355,7 @@ commit distribuído.
 
 ## Testes
 
-**217 no total** — 199 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**272 no total** — 254 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 18 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -331,6 +370,9 @@ banco em memória não o reproduz.
 | `DocumentacaoOpenApiIntegrationTest` | A especificação não mente sobre o que é público — e o `409 SOLD_OUT` continua documentado |
 | `DocumentacaoAgregadaIntegrationTest` | O Swagger do gateway sobe e aponta para rotas que existem — dois bugs reais, ambos com build verde e página 404 |
 | `OutboxIntegrationTest` *(broker inalcançável)* | Broker fora do ar não consome o orçamento de tentativas — bug encontrado ao subir em Kubernetes |
+| `RetryDePagamentoIntegrationTest` | O retry repete de verdade, e as tentativas mantêm a **mesma** chave de idempotência — sem isso o retry cobraria duas vezes |
+| `TraceNaOutboxIntegrationTest` | O contexto de trace sobrevive à travessia da outbox, apesar dos segundos e da troca de thread |
+| `MetricasPrometheusIntegrationTest` | Os nomes de métrica de que os painéis dependem continuam existindo — e o próprio monitoramento fica fora deles |
 
 ```bash
 ./mvnw clean install          # backend — exige Docker, para os Testcontainers
