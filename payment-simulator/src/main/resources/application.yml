@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8085}
+
+spring:
+  application:
+    name: payment-simulator
+
+# O quanto este provedor falso se comporta mal.
+#
+# Os padroes sao pensados para a demonstracao, e nao para uma media realista: 30% de falha
+# transitoria e mais do que qualquer provedor de verdade, e e de proposito. Com 2% seria preciso
+# gravar cinquenta pagamentos para o retry aparecer uma vez.
+#
+# Para rodar os testes de integracao da plataforma, zere os dois: um teste de reserva que falha
+# porque o simulador sorteou mal nao esta testando reserva, esta testando o dado.
+simulacao:
+  falha-percentual: ${PAGAMENTO_FALHA_PERCENTUAL:30}
+  # Bem menor que a falha: a recusa e definitiva, e uma taxa alta faria a demonstracao passar mais
+  # tempo mostrando o caminho em que o retry nao ajuda do que aquele em que ele salva a compra.
+  recusa-percentual: ${PAGAMENTO_RECUSA_PERCENTUAL:5}
+  # Um provedor de pagamento real leva centenas de milissegundos. E esse tempo que faz o timeout
+  # de quem chama ser uma decisao real, e nao um numero copiado de um tutorial.
+  latencia: ${PAGAMENTO_LATENCIA:200ms}
+  latencia-extra: ${PAGAMENTO_LATENCIA_EXTRA:400ms}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.devbandeiraa.paymentsimulator: DEBUG
