@@ -46,6 +46,20 @@
 		</dependency>
 
 		<!--
+			Formato de exposicao das metricas que o Prometheus colhe. So esta dependencia; o
+			Micrometer em si ja vem com o actuator, e as metricas ja estavam sendo coletadas — o
+			que faltava era um registry capaz de servi-las em /actuator/prometheus.
+
+			Prometheus colhe (pull), e nao recebe (push). A diferenca importa: um servico que
+			morreu simplesmente para de responder a coleta, e essa ausencia e o proprio sinal de
+			queda. Com push, um servico morto e indistinguivel de um servico ocioso.
+		-->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!--
 			Backend do RequestRateLimiter. Precisa ser a variante reativa: o cliente bloqueante
 			pararia a event loop do Netty a cada requisicao, que e exatamente o que o gateway
 			nao pode fazer.

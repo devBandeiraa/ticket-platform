@@ -155,10 +155,21 @@ management:
         # `gateway` lista as rotas ja resolvidas, o que ajuda a conferir a tabela acima sem ler
         # este arquivo — mas tambem revela os enderecos internos dos servicos. Por isso vem de
         # variavel: em ambiente publico, exponha so health e info.
-        include: ${ACTUATOR_ENDPOINTS:health,info,gateway}
+        include: ${ACTUATOR_ENDPOINTS:health,info,gateway,prometheus}
   endpoint:
     health:
       show-details: always
+
+  # Metricas no formato do Prometheus. Ver o comentario no booking-service para o porque das
+  # faixas de latencia e do custo de cardinalidade que elas trazem.
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 10s
 
   # Tracing distribuido. Aqui e onde o trace nasce: como todo o trafego externo entra por este
   # servico, e dele que sai o contexto que os demais continuam. Ver o comentario no
