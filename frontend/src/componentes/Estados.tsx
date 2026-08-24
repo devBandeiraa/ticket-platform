@@ -73,6 +73,9 @@ const MENSAGENS: Record<string, string> = {
   SESSION_EXPIRED: 'Sua sessao expirou. Entre novamente.',
   VALIDATION_ERROR: 'Confira os campos destacados.',
   FORBIDDEN: 'Voce nao tem permissao para isso.',
+  // Perder a fonte de metricas nao e a plataforma cair. O texto evita a leitura mais alarmante,
+  // que seria justamente a errada.
+  METRICS_UNAVAILABLE: 'Nao foi possivel ler as metricas da plataforma.',
 }
 
 export function mensagemDe(erro: unknown): string {

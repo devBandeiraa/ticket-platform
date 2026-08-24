@@ -13,6 +13,7 @@ import { EventosAdmin } from './paginas/admin/EventosAdmin'
 import { FormularioDeEvento } from './paginas/admin/FormularioDeEvento'
 import { ReservasAdmin } from './paginas/admin/ReservasAdmin'
 import { DemoConcorrencia } from './paginas/DemoConcorrencia'
+import { Status } from './paginas/Status'
 import { NaoEncontrada } from './paginas/NaoEncontrada'
 
 const clienteDeQueries = new QueryClient({
@@ -43,6 +44,10 @@ export default function App() {
               <Route path="login" element={<Login />} />
               <Route path="cadastro" element={<Cadastro />} />
               <Route path="demo/concorrencia" element={<DemoConcorrencia />} />
+              {/* Publica de proposito: num projeto de portfolio, quem visita precisa conseguir
+                  abrir. Num ambiente real ela exigiria sessao de administrador — a pagina revela
+                  quais servicos existem e quais estao fora. */}
+              <Route path="status" element={<Status />} />
 
               {/* exigem sessao */}
               <Route element={<RotaProtegida />}>
