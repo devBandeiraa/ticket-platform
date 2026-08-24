@@ -36,6 +36,21 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+
+		<!--
+			Tracing distribuido. A ponte do Micrometer instrumenta sozinha o que ja e Spring, e o
+			exportador OTLP entrega os spans ao Jaeger. Sem versao: as duas vem gerenciadas pela BOM
+			do Spring Boot. Ver o comentario no pom do booking-service para o porque de nao usar o
+			agente Java do OpenTelemetry.
+		-->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-otel</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-otlp</artifactId>
+		</dependency>
 		<!-- Validacao de JWT, papeis e formato de erro. O starter de security vem
 		     declarado a parte porque no shared-security ele e provided, justamente
 		     para nao ser transitivo. -->

@@ -1,10 +1,13 @@
-# Plataforma de ingressos completa: infraestrutura, os cinco servicos e o frontend.
+# Plataforma de ingressos completa: infraestrutura, observabilidade, os servicos e o frontend.
 #
 #     docker compose up --build      sobe tudo
 #     docker compose up postgres redis rabbitmq
 #                                    so a infraestrutura, para rodar um servico pela IDE
 #
-# Depois de tudo no ar, o unico endereco que interessa e http://localhost:5173.
+# Depois de tudo no ar:
+#     http://localhost:5173          a aplicacao
+#     http://localhost:8080/swagger-ui.html   a documentacao da API
+#     http://localhost:16686         o Jaeger, para seguir uma requisicao entre os servicos
 
 name: ticket-platform
 
@@ -25,6 +28,13 @@ x-infra-interna: &infra-interna
   RABBITMQ_USER: ${RABBITMQ_USER:-ticket}
   RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-ticket}
   JWT_SECRET: ${JWT_SECRET:-desenvolvimento-local-troque-este-segredo-antes-de-publicar}
+
+# Destino dos spans. Bloco separado do de infraestrutura porque o payment-simulator precisa
+# deste, mas nao daquele: ele nao tem banco, nem Redis, nem broker — e ainda assim tem de
+# aparecer no trace, senao a chamada de pagamento termina num ponto cego.
+x-observabilidade: &observabilidade
+  OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+  TRACING_AMOSTRAGEM: ${TRACING_AMOSTRAGEM:-1.0}
 
 x-servico-java: &servico-java
   restart: unless-stopped
@@ -127,6 +137,37 @@ services:
       start_period: 30s
 
   # -------------------------------------------------------------------------
+  # Observabilidade
+  # -------------------------------------------------------------------------
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: ticket-jaeger
+    restart: unless-stopped
+    environment:
+      # O all-in-one nasce falando apenas o protocolo nativo do Jaeger. Sem este flag a porta
+      # 4318 nem abre, e os servicos exportariam spans contra uma porta fechada — em silencio,
+      # porque o exportador OTLP nao derruba a aplicacao quando o coletor nao responde.
+      COLLECTOR_OTLP_ENABLED: "true"
+      # Guarda os traces em memoria. Nao ha volume de proposito: sao dados de diagnostico de um
+      # ambiente de desenvolvimento, e um `docker compose down` deve limpa-los junto com o resto.
+      # O limite existe para o container nao crescer sem teto numa sessao longa de testes.
+      MEMORY_MAX_TRACES: ${JAEGER_MAX_TRACES:-20000}
+    ports:
+      # Interface web. E o unico destes enderecos que uma pessoa abre.
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      # Receptor OTLP sobre HTTP. Publicado no host para permitir rodar um servico pela IDE,
+      # fora do compose, e ainda assim ver os spans dele aqui.
+      - "${JAEGER_OTLP_HTTP_PORT:-4318}:4318"
+    healthcheck:
+      # A porta 14269 e a de administracao do Jaeger, e responde /
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
   # Servicos
   # -------------------------------------------------------------------------
 
@@ -140,7 +181,7 @@ services:
         MODULO: auth-service
         PORTA: 8081
     environment:
-      <<: *infra-interna
+      <<: [*infra-interna, *observabilidade]
       SERVER_PORT: 8081
       AUTH_DB_NAME: ${AUTH_DB_NAME:-authdb}
       AUTH_DB_USER: ${AUTH_DB_USER:-auth_user}
@@ -170,7 +211,7 @@ services:
         MODULO: event-service
         PORTA: 8082
     environment:
-      <<: *infra-interna
+      <<: [*infra-interna, *observabilidade]
       SERVER_PORT: 8082
       EVENT_DB_NAME: ${EVENT_DB_NAME:-eventdb}
       EVENT_DB_USER: ${EVENT_DB_USER:-event_user}
@@ -192,7 +233,7 @@ services:
         MODULO: booking-service
         PORTA: 8083
     environment:
-      <<: *infra-interna
+      <<: [*infra-interna, *observabilidade]
       SERVER_PORT: 8083
       BOOKING_DB_NAME: ${BOOKING_DB_NAME:-bookingdb}
       BOOKING_DB_USER: ${BOOKING_DB_USER:-booking_user}
@@ -234,6 +275,7 @@ services:
         MODULO: payment-simulator
         PORTA: 8085
     environment:
+      <<: *observabilidade
       SERVER_PORT: 8085
       # Alto de proposito: com 2% seria preciso gravar cinquenta pagamentos para o retry aparecer
       # uma vez. Zere as duas variaveis para rodar sem instabilidade.
@@ -253,7 +295,7 @@ services:
         MODULO: notification-service
         PORTA: 8084
     environment:
-      <<: *infra-interna
+      <<: [*infra-interna, *observabilidade]
       SERVER_PORT: 8084
     depends_on:
       rabbitmq:
@@ -274,7 +316,7 @@ services:
         MODULO: api-gateway
         PORTA: 8080
     environment:
-      <<: *infra-interna
+      <<: [*infra-interna, *observabilidade]
       SERVER_PORT: 8080
       AUTH_SERVICE_URI: http://auth-service:8081
       EVENT_SERVICE_URI: http://event-service:8082

@@ -160,6 +160,19 @@ management:
     health:
       show-details: always
 
+  # Tracing distribuido. Aqui e onde o trace nasce: como todo o trafego externo entra por este
+  # servico, e dele que sai o contexto que os demais continuam. Ver o comentario no
+  # booking-service para a decisao de amostragem.
+  tracing:
+    sampling:
+      probability: ${TRACING_AMOSTRAGEM:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
 logging:
+  # O gateway e reativo e nao tem MDC — uma requisicao salta entre threads da event loop, e o MDC
+  # vive numa ThreadLocal. Por isso nao ha `pattern.correlation` aqui: os filtros que registram log
+  # ja imprimem o traceId explicitamente, lendo-o do atributo da troca.
   level:
     com.devbandeiraa.apigateway: DEBUG

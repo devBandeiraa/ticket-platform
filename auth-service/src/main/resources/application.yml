@@ -46,13 +46,28 @@ management:
     health:
       show-details: always
 
+  # Tracing distribuido. Ver o comentario no booking-service para a decisao de amostragem.
+  tracing:
+    sampling:
+      probability: ${TRACING_AMOSTRAGEM:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
 logging:
-  # Prefixa cada linha com o X-Request-Id da requisicao, posto no MDC pelo CorrelacaoServletFilter.
+  # Prefixa cada linha com dois identificadores: o X-Request-Id, posto no MDC pelo
+  # CorrelacaoServletFilter, e o traceId do OpenTelemetry, posto pelo Micrometer Tracing.
+  #
+  # Sao dois porque servem a momentos diferentes. O requestId e o que aparece na tela de erro e
+  # que o usuario consegue ditar; o traceId e o que se cola na busca do Jaeger. Com os dois na
+  # mesma linha, ir de um ao outro e um grep.
+  #
   # `pattern.correlation` e um encaixe que o Boot ja reserva dentro do padrao padrao: preenche-lo
-  # evita redefinir data, nivel e thread so para acrescentar um campo. O `:-` deixa o campo vazio
-  # fora de uma requisicao, como nos logs de subida.
+  # evita redefinir data, nivel e thread so para acrescentar campos. Preencher e tambem o que
+  # impede o Boot de trocar este campo pelo formato proprio dele assim que o tracing entra no
+  # classpath. O `:-` deixa cada campo vazio fora do respectivo contexto.
   pattern:
-    correlation: "[%X{requestId:-}] "
+    correlation: "[%X{requestId:-} %X{traceId:-}] "
   level:
     com.devbandeiraa.authservice: DEBUG
 

@@ -42,6 +42,15 @@ spring:
     username: ${RABBITMQ_USER:ticket}
     password: ${RABBITMQ_PASSWORD:ticket}
 
+    template:
+      # Faz o RabbitTemplate abrir um span por publicacao e injetar o contexto nos cabecalhos da
+      # mensagem. E o que leva o trace ate o notification-service: sem isto a mensagem viaja sem
+      # contexto e o consumidor comeca uma arvore propria, desligada da compra.
+      #
+      # O contexto injetado e o corrente. Como o OutboxPublisher restaura o da requisicao original
+      # antes de publicar, o que vai na mensagem e o da compra — e nao o da thread do job.
+      observation-enabled: true
+
 # Lock distribuido que serializa as tentativas de reserva do mesmo evento.
 #
 # Vale insistir: nenhum destes valores afeta a CORRECAO do sistema. Errar o TTL para menos faz
@@ -187,6 +196,23 @@ management:
   endpoint:
     health:
       show-details: always
+  # Tracing distribuido.
+  #
+  # Amostragem em 100%: e uma decisao de projeto de estudo, e nao um padrao a copiar. Em producao
+  # este numero seria uma fracao pequena — guardar um trace de cada requisicao de um sistema com
+  # volume real custa armazenamento e banda a toa, porque a maioria dos traces e de requisicoes
+  # que deram certo e ninguem vai olhar. Aqui o valor de um trace e didatico: cada reserva feita
+  # numa demonstracao precisa aparecer, ou o Jaeger fica vazio justamente na hora de mostrar.
+  tracing:
+    sampling:
+      probability: ${TRACING_AMOSTRAGEM:1.0}
+  otlp:
+    tracing:
+      # Protocolo OTLP sobre HTTP, e nao o formato nativo do Jaeger. O ganho e nao ficar preso a
+      # ele: trocar por Tempo, Zipkin ou um coletor gerenciado passa a ser mudar este endereco,
+      # sem tocar em dependencia nem em codigo de servico nenhum.
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
   health:
     circuitbreakers:
       # Faz o estado do circuito aparecer dentro do /actuator/health. Deliberadamente ligado: um
@@ -195,12 +221,19 @@ management:
       enabled: true
 
 logging:
-  # Prefixa cada linha com o X-Request-Id da requisicao, posto no MDC pelo CorrelacaoServletFilter.
+  # Prefixa cada linha com dois identificadores: o X-Request-Id, posto no MDC pelo
+  # CorrelacaoServletFilter, e o traceId do OpenTelemetry, posto pelo Micrometer Tracing.
+  #
+  # Sao dois porque servem a momentos diferentes. O requestId e o que aparece na tela de erro e
+  # que o usuario consegue ditar; o traceId e o que se cola na busca do Jaeger. Com os dois na
+  # mesma linha, ir de um ao outro e um grep.
+  #
   # `pattern.correlation` e um encaixe que o Boot ja reserva dentro do padrao padrao: preenche-lo
-  # evita redefinir data, nivel e thread so para acrescentar um campo. O `:-` deixa o campo vazio
-  # fora de uma requisicao — logs de subida e jobs agendados (expiracao de reservas, outbox).
+  # evita redefinir data, nivel e thread so para acrescentar campos. Preencher e tambem o que
+  # impede o Boot de trocar este campo pelo formato proprio dele assim que o tracing entra no
+  # classpath. O `:-` deixa cada campo vazio fora do respectivo contexto.
   pattern:
-    correlation: "[%X{requestId:-}] "
+    correlation: "[%X{requestId:-} %X{traceId:-}] "
   level:
     com.devbandeiraa.bookingservice: DEBUG
 

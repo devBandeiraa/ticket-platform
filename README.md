@@ -373,10 +373,12 @@ Escolhas de escopo, não descuidos. Todas estão registradas com justificativa e
 - **HS256 com segredo compartilhado.** Quem valida o token também consegue emitir. Em produção
   viraria RS256 com JWKS — o gateway validaria com a chave pública sem poder assinar nada.
 - **Pagamento simulado.** O ciclo `PENDING → CONFIRMED → EXPIRED` é real, incluindo a devolução de
-  estoque; o que não existe é o gateway de pagamento.
+  estoque. O `payment-simulator` representa o provedor externo — com latência, falha transitória e
+  recusa definitiva —, mas não move dinheiro nem guarda as autorizações em disco.
 - **Uma instância de cada banco.** Sem réplica de leitura, sem particionamento.
-- **Sem tracing distribuído.** Há `traceId` por resposta e métricas via Micrometer, mas não um
-  Jaeger ligando os saltos.
+- **Amostragem de traces em 100%.** Correto para um projeto de estudo, errado em produção: guardar
+  um trace de cada requisição de um sistema com volume real custa armazenamento e banda para
+  registrar, na maioria, requisições que deram certo e ninguém vai olhar.
 - **Sem CI.** Os testes rodam localmente; um workflow de GitHub Actions é o próximo passo natural.
 - **Kubernetes só em cluster local.** Um nó, `NodePort` em vez de Ingress, sem HPA e com os
   Secrets versionados para o projeto subir com um comando. As três coisas mudam em ambiente real,

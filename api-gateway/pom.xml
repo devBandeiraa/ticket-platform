@@ -31,6 +31,21 @@
 		</dependency>
 
 		<!--
+			Tracing distribuido. A ponte do Micrometer instrumenta sozinha o que ja e Spring, e o
+			exportador OTLP entrega os spans ao Jaeger. Sem versao: as duas vem gerenciadas pela BOM
+			do Spring Boot. Ver o comentario no pom do booking-service para o porque de nao usar o
+			agente Java do OpenTelemetry.
+		-->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-otel</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-otlp</artifactId>
+		</dependency>
+
+		<!--
 			Backend do RequestRateLimiter. Precisa ser a variante reativa: o cliente bloqueante
 			pararia a event loop do Netty a cada requisicao, que e exatamente o que o gateway
 			nao pode fazer.
