@@ -100,3 +100,16 @@ o lugar para provar.
   Controller passaria a valer a pena.
 - **Sem HPA nem PodDisruptionBudget.** Réplicas fixas. Autoescala exigiria metrics-server e uma
   carga real para calibrar — sem isso seria configuração decorativa.
+- **Parou na Fase 9.** Estes manifestos cobrem os cinco serviços originais e a infraestrutura. O
+  que veio depois — `payment-simulator`, Jaeger, Prometheus e Grafana — só existe no
+  `docker compose`. Na prática, num cluster subido por este guia:
+  - **pagar uma reserva falha**, porque `PAYMENT_SERVICE_URL` aponta para um serviço que não
+    está lá. Reservar, cancelar e expirar continuam funcionando — a tese do projeto não passa
+    pelo pagamento;
+  - **não há traces nem métricas**, e a página `/status` responde `503 METRICS_UNAVAILABLE` —
+    que é exatamente o comportamento projetado para "perdi a fonte", e não um erro novo.
+
+  Levar as duas coisas para cá é o próximo passo natural, e não é recortar YAML: o Prometheus
+  precisaria descobrir os alvos pela API do Kubernetes em vez da lista fixa de
+  `monitoring/prometheus/prometheus.yml`, porque num cluster o endereço de um pod muda a cada
+  reinício.
