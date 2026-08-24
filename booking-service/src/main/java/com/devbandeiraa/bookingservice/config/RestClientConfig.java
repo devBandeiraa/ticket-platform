@@ -1,6 +1,7 @@
 package com.devbandeiraa.bookingservice.config;
 
 import com.devbandeiraa.bookingservice.client.EventServiceProperties;
+import com.devbandeiraa.bookingservice.client.PagamentoProperties;
 import com.devbandeiraa.shared.security.CorrelacaoDeRequisicao;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
@@ -42,8 +43,30 @@ public class RestClientConfig {
     }
 
     /**
-     * Repassa o {@code X-Request-Id} adiante, para o event-service registrar os proprios logs sob
-     * o mesmo identificador.
+     * Cliente do provedor de pagamento.
+     *
+     * <p>Bean separado, e nao o mesmo {@code RestClient} com outra URL: os limites de tempo sao
+     * diferentes por natureza. Consultar um catalogo e leitura barata; autorizar uma cobranca
+     * envolve um terceiro que legitimamente demora. Um cliente unico obrigaria a adotar o maior
+     * dos dois timeouts para os dois destinos, e o event-service voltaria a poder prender threads
+     * por segundos — exatamente o que os timeouts curtos dele existem para impedir.
+     */
+    @Bean
+    RestClient pagamentoRestClient(RestClient.Builder builder, PagamentoProperties propriedades) {
+        SimpleClientHttpRequestFactory fabrica = new SimpleClientHttpRequestFactory();
+        fabrica.setConnectTimeout(propriedades.connectTimeout());
+        fabrica.setReadTimeout(propriedades.readTimeout());
+
+        return builder
+                .baseUrl(propriedades.url())
+                .requestFactory(fabrica)
+                .requestInitializer(RestClientConfig::propagarCorrelacao)
+                .build();
+    }
+
+    /**
+     * Repassa o {@code X-Request-Id} adiante, para o servico de destino registrar os proprios logs
+     * sob o mesmo identificador.
      *
      * <p>Esta e a unica chamada HTTP entre servicos do projeto, e portanto o unico ponto em que a
      * corrente de correlacao poderia se partir. Sem esta linha, o gateway e o booking-service

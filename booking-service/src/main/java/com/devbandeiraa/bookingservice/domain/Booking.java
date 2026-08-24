@@ -65,6 +65,13 @@ public class Booking {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    /**
+     * Comprovante do provedor de pagamento. Nulo enquanto a reserva nao foi paga, e nas reservas
+     * anteriores a existencia do provedor.
+     */
+    @Column(name = "payment_authorization", length = 40)
+    private String paymentAuthorization;
+
     @Column(name = "idempotency_key", nullable = false, updatable = false, length = 100)
     private String idempotencyKey;
 
@@ -152,6 +159,10 @@ public class Booking {
 
     public Instant getPaidAt() {
         return paidAt;
+    }
+
+    public String getPaymentAuthorization() {
+        return paymentAuthorization;
     }
 
     public String getIdempotencyKey() {

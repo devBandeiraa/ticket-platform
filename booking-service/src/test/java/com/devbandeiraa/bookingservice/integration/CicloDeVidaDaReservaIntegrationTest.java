@@ -1,11 +1,15 @@
 package com.devbandeiraa.bookingservice.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.devbandeiraa.bookingservice.client.Autorizacao;
 import com.devbandeiraa.bookingservice.client.EventClient;
+import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.domain.EventInventory;
@@ -68,6 +72,15 @@ class CicloDeVidaDaReservaIntegrationTest {
     @MockitoBean
     private EventClient eventClient;
 
+    /**
+     * O provedor de pagamento e um terceiro, e estes testes verificam as transicoes de estado da
+     * reserva — nao a integracao com ele. Deixa-lo real faria a suite inteira falhar por conexao
+     * recusada, escondendo defeitos naquilo que ela realmente mede. O retry e o comportamento do
+     * provedor tem classe propria, em {@link RetryDePagamentoIntegrationTest}.
+     */
+    @MockitoBean
+    private PagamentoClient pagamentoClient;
+
     private UUID eventoId;
     private UUID usuarioId;
     private String tokenDoUsuario;
@@ -76,6 +89,12 @@ class CicloDeVidaDaReservaIntegrationTest {
     void limparEstado() {
         bookingRepository.deleteAllInBatch();
         estoqueRepository.deleteAllInBatch();
+
+        // Provedor sempre autorizando: o desfecho da cobranca nao e o objeto destes testes, e um
+        // stub que sorteia tornaria intermitente uma verificacao de maquina de estados.
+        when(pagamentoClient.autorizar(any(UUID.class), any(BigDecimal.class)))
+                .thenAnswer(chamada ->
+                        new Autorizacao(chamada.getArgument(0), "AUT-TESTE", false));
 
         eventoId = UUID.randomUUID();
         usuarioId = UUID.randomUUID();

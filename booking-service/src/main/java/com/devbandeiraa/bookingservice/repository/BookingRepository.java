@@ -44,13 +44,15 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
     @Query("""
             UPDATE Booking reserva
                SET reserva.status = :confirmada,
-                   reserva.paidAt = :agora
+                   reserva.paidAt = :agora,
+                   reserva.paymentAuthorization = :comprovante
              WHERE reserva.id = :id
                AND reserva.status = :pendente
                AND reserva.expiresAt > :agora
             """)
     int confirmarSePendente(@Param("id") UUID id,
                             @Param("agora") Instant agora,
+                            @Param("comprovante") String comprovante,
                             @Param("pendente") BookingStatus pendente,
                             @Param("confirmada") BookingStatus confirmada);
 
@@ -97,9 +99,16 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
     // do JPQL; deixar isso a cargo de cada chamador e que seria ruim, porque abriria espaco
     // para alguem montar uma transicao que a maquina de estados nao preve.
 
-    /** Confirma o pagamento de uma reserva pendente e dentro do prazo. */
-    default int confirmar(UUID id, Instant agora) {
-        return confirmarSePendente(id, agora, BookingStatus.PENDING, BookingStatus.CONFIRMED);
+    /**
+     * Confirma o pagamento de uma reserva pendente e dentro do prazo, gravando o comprovante.
+     *
+     * <p>O comprovante entra no mesmo {@code UPDATE} que muda o status, e nao numa escrita
+     * separada: sao o mesmo fato. Gravado a parte, um erro entre as duas instrucoes deixaria uma
+     * reserva confirmada sem como estorna-la, ou um comprovante solto sem reserva.
+     */
+    default int confirmar(UUID id, Instant agora, String comprovante) {
+        return confirmarSePendente(
+                id, agora, comprovante, BookingStatus.PENDING, BookingStatus.CONFIRMED);
     }
 
     /** Cancelamento pedido pelo usuario. */
