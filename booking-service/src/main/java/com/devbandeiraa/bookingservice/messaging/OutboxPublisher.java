@@ -5,6 +5,8 @@ import com.devbandeiraa.bookingservice.domain.OutboxMessage;
 import com.devbandeiraa.bookingservice.repository.OutboxRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
@@ -38,6 +40,7 @@ public class OutboxPublisher {
     private final OutboxRepository outboxRepository;
     private final RabbitTemplate rabbitTemplate;
     private final OutboxProperties propriedades;
+    private final ContextoDeTrace contextoDeTrace;
     private final Counter publicadas;
     private final Counter falhas;
     private final Counter descartadas;
@@ -45,10 +48,12 @@ public class OutboxPublisher {
     public OutboxPublisher(OutboxRepository outboxRepository,
                            RabbitTemplate rabbitTemplate,
                            OutboxProperties propriedades,
+                           ContextoDeTrace contextoDeTrace,
                            MeterRegistry metricas) {
         this.outboxRepository = outboxRepository;
         this.rabbitTemplate = rabbitTemplate;
         this.propriedades = propriedades;
+        this.contextoDeTrace = contextoDeTrace;
         this.publicadas = metricas.counter("booking.outbox.publicadas");
         this.falhas = metricas.counter("booking.outbox.falhas");
         this.descartadas = metricas.counter("booking.outbox.descartadas");
@@ -109,7 +114,29 @@ public class OutboxPublisher {
                 mensagem.getType(), mensagem.getAggregateId(), mensagem.getId());
     }
 
+    /**
+     * Publica dentro do contexto de trace da requisicao que originou a mensagem.
+     *
+     * <p>Sem isto, o span sairia daqui como raiz de uma arvore nova — a thread deste job nao tem
+     * relacao nenhuma com a requisicao que pagou a reserva, segundos atras. Restaurando o contexto
+     * guardado na linha, a publicacao vira filha daquela requisicao e o consumidor, neto: a compra
+     * e a notificacao aparecem no Jaeger como uma coisa so.
+     *
+     * <p>O span e fechado no {@code finally} porque um span nao encerrado nunca chega ao coletor.
+     * A falha de publicacao e tratada por quem chama; o que este bloco garante e que o registro do
+     * que aconteceu saia dos dois jeitos.
+     */
     private void enviar(OutboxMessage mensagem) {
+        Span publicacao = contextoDeTrace.abrirPublicacao(mensagem.getTraceParent()).start();
+
+        try (Tracer.SpanInScope ignorado = contextoDeTrace.escopoDe(publicacao)) {
+            publicarNoBroker(mensagem);
+        } finally {
+            publicacao.end();
+        }
+    }
+
+    private void publicarNoBroker(OutboxMessage mensagem) {
         rabbitTemplate.convertAndSend(
                 RabbitConfig.EXCHANGE,
                 mensagem.getType(),

@@ -63,22 +63,37 @@ public class OutboxMessage {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    /**
+     * Contexto de trace da requisicao que originou o evento, no formato W3C.
+     *
+     * <p>Guardado junto da mensagem porque a outbox e uma quebra na linha do tempo: a publicacao
+     * acontece segundos depois, numa thread de job que nao sabe nada da requisicao original. Sem
+     * este campo, o consumidor apareceria no Jaeger como uma arvore solta, sem ligacao com a
+     * compra que o causou.
+     *
+     * <p>Nulo e estado legitimo — evento registrado por um job nao tem requisicao de origem.
+     */
+    @Column(name = "trace_parent", updatable = false, length = 64)
+    private String traceParent;
+
     /** Exigido pelo JPA. Nao usar diretamente. */
     protected OutboxMessage() {
     }
 
-    private OutboxMessage(String aggregateType, UUID aggregateId, String type, String payload) {
+    private OutboxMessage(String aggregateType, UUID aggregateId, String type, String payload,
+                          String traceParent) {
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.type = type;
         this.payload = payload;
+        this.traceParent = traceParent;
         this.status = OutboxStatus.PENDING;
         this.attempts = 0;
     }
 
     public static OutboxMessage pendente(String aggregateType, UUID aggregateId, String type,
-                                         String payload) {
-        return new OutboxMessage(aggregateType, aggregateId, type, payload);
+                                         String payload, String traceParent) {
+        return new OutboxMessage(aggregateType, aggregateId, type, payload, traceParent);
     }
 
     public UUID getId() {
@@ -119,6 +134,10 @@ public class OutboxMessage {
 
     public Instant getPublishedAt() {
         return publishedAt;
+    }
+
+    public String getTraceParent() {
+        return traceParent;
     }
 
     @Override

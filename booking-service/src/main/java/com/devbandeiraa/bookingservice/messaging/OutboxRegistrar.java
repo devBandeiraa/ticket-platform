@@ -21,19 +21,29 @@ public class OutboxRegistrar {
 
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
+    private final ContextoDeTrace contextoDeTrace;
 
-    public OutboxRegistrar(OutboxRepository outboxRepository, ObjectMapper objectMapper) {
+    public OutboxRegistrar(OutboxRepository outboxRepository, ObjectMapper objectMapper,
+                           ContextoDeTrace contextoDeTrace) {
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
+        this.contextoDeTrace = contextoDeTrace;
     }
 
-    /** Registra que uma reserva foi paga. */
+    /**
+     * Registra que uma reserva foi paga.
+     *
+     * <p>O contexto de trace e capturado <em>aqui</em>, e nao na publicacao, porque aqui ainda se
+     * esta dentro da requisicao que pagou a reserva. Na publicacao, segundos depois, esse contexto
+     * ja nao existe — e capturado la produziria a arvore do job, nao a da compra.
+     */
     public void registrarConfirmacao(BookingConfirmedEvent evento) {
         outboxRepository.save(OutboxMessage.pendente(
                 AGREGADO_RESERVA,
                 evento.bookingId(),
                 BookingConfirmedEvent.TIPO,
-                serializar(evento)));
+                serializar(evento),
+                contextoDeTrace.capturar()));
     }
 
     /**
