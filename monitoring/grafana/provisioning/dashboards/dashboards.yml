@@ -1,0 +1,20 @@
+# Carrega os dashboards versionados no repositorio, em vez de guarda-los no banco do Grafana.
+#
+# A consequencia pratica: os paineis sao codigo, entram por Pull Request e aparecem no diff.
+# Um painel montado pela interface seria um binario invisivel dentro de um volume.
+
+apiVersion: 1
+
+providers:
+  - name: ticket-platform
+    folder: Ticket Platform
+    type: file
+    # Impede que uma edicao feita na tela seja gravada por cima do arquivo do repositorio.
+    # A edicao continua possivel para experimentar; ela so nao sobrevive ao restart, que e
+    # exatamente o que se quer de um painel versionado.
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      # Faz o Grafana criar pastas espelhando os subdiretorios, em vez de achatar tudo.
+      foldersFromFilesStructure: false

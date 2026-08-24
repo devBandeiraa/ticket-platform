@@ -1,0 +1,276 @@
+{
+  "uid": "ticket-reservas",
+  "title": "Reservas e mensageria",
+  "description": "As metricas do dominio, e nao da infraestrutura. Sao as que respondem a pergunta que originou o projeto: quanta disputa realmente chega ao estoque, e o que acontece quando as defesas em volta dela falham.",
+  "tags": ["ticket-platform", "dominio"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Locks adquiridos (1h)",
+      "description": "Reservas que entraram na secao critica com exclusividade.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_lock_adquiridos_total[1h])) or vector(0)",
+          "legendFormat": "adquiridos"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Locks nao adquiridos (1h)",
+      "description": "Tentativas que desistiram do lock depois das repeticoes configuradas. Nao e erro: e a medida de quanta gente disputou o mesmo evento ao mesmo tempo.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_lock_nao_adquiridos_total[1h])) or vector(0)",
+          "legendFormat": "nao adquiridos"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Reservas sem lock nenhum (1h)",
+      "description": "Quantas vezes o Redis nao respondeu e a reserva seguiu adiante mesmo assim. E o painel que mostra a tese do projeto funcionando: o lock e uma otimizacao para reduzir disputa, nao a garantia. Mesmo com este numero alto, o UPDATE condicional e a constraint no PostgreSQL continuam impedindo a venda a mais.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_lock_degradacoes_total[1h])) or vector(0)",
+          "legendFormat": "degradacoes"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Locks expirados em uso (1h)",
+      "description": "O TTL venceu enquanto a secao critica ainda rodava, o que significa que duas threads podem ter estado la dentro juntas. Continua sem oversell — e o banco que garante — mas um numero diferente de zero aqui pede um TTL maior.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_lock_expirados_total[1h])) or vector(0)",
+          "legendFormat": "expirados"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Disputa pelo lock de reserva",
+      "description": "As duas curvas juntas contam o formato da carga. Um pico simultaneo no mesmo evento — o cenario que o projeto existe para resolver — aparece como as duas subindo ao mesmo tempo.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(booking_lock_adquiridos_total[1m]))",
+          "legendFormat": "adquiridos"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(booking_lock_nao_adquiridos_total[1m]))",
+          "legendFormat": "nao adquiridos"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(booking_lock_degradacoes_total[1m]))",
+          "legendFormat": "sem lock (Redis fora)"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "adquiridos" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "sem lock (Redis fora)" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Outbox transacional",
+      "description": "As 'descartadas' sao mensagens que esgotaram as tentativas e sairam do caminho para nao travar o lote. Cada uma e uma notificacao que ninguem recebeu — o unico numero deste painel que merece investigacao imediata.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(booking_outbox_publicadas_total[1m]))",
+          "legendFormat": "publicadas"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(booking_outbox_falhas_total[1m]))",
+          "legendFormat": "falhas (serao repetidas)"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(booking_outbox_descartadas_total[1m]))",
+          "legendFormat": "descartadas (perdidas)"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "publicadas" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "descartadas (perdidas)" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Notificacoes e deduplicacao",
+      "description": "O RabbitMQ entrega ao menos uma vez, entao a mesma confirmacao pode chegar duas vezes ao notification-service. As 'duplicatas descartadas' sao a prova de que a defesa contra isso esta trabalhando; se elas existem e as 'enviadas' nao dobraram, ninguem recebeu o e-mail em dobro.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(notification_enviadas_total[1m]))",
+          "legendFormat": "enviadas"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(notification_duplicatas_descartadas_total[1m]))",
+          "legendFormat": "duplicatas descartadas"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(notification_deduplicacao_degradacoes_total[1m]))",
+          "legendFormat": "sem deduplicacao (Redis fora)"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "enviadas" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "sem deduplicacao (Redis fora)" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
+      }
+    }
+  ]
+}

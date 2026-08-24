@@ -8,6 +8,8 @@
 #     http://localhost:5173          a aplicacao
 #     http://localhost:8080/swagger-ui.html   a documentacao da API
 #     http://localhost:16686         o Jaeger, para seguir uma requisicao entre os servicos
+#     http://localhost:3000          o Grafana, com os paineis ja carregados (nao pede login)
+#     http://localhost:9090          o Prometheus, para conferir a coleta e testar uma consulta
 
 name: ticket-platform
 
@@ -166,6 +168,75 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: ticket-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Seis horas de historico. Um painel de portfolio nao precisa de semanas de serie temporal,
+      # e o disco de quem clona o repositorio agradece.
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENCAO:-6h}
+      # Permite recarregar o prometheus.yml com um POST em /-/reload, sem reiniciar o container e
+      # portanto sem perder as series ja coletadas.
+      - --web.enable-lifecycle
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: ticket-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      # Leitura sem login. E uma decisao de ambiente de desenvolvimento, nao um descuido: numa
+      # demonstracao gravada, uma tela de login no meio do caminho so atrapalha, e nao ha nada
+      # aqui alem de metricas de uma plataforma de mentira. Publicando de verdade, remova as
+      # tres linhas abaixo — a conta de administrador continua existindo para editar.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_USERS_DEFAULT_THEME: dark
+      # Silencia a checagem de versao e a telemetria: sao chamadas para fora que nao fazem falta
+      # e que poluem o log de quem sobe isto sem internet.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      # Fonte de dados e provedor de dashboards, lidos na subida.
+      #
+      # Montados um a um, e nao o diretorio `provisioning` inteiro: a imagem ja traz `plugins/` e
+      # `alerting/` vazios, e substituir a pasta inteira os faria sumir — o Grafana entao registra
+      # um ERROR na subida para cada um. Nada quebra, mas o log de arranque passa a ter erros que
+      # nao sao erros, o que e pior do que parece: ensina quem le a ignorar erros.
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Os JSONs dos paineis. Montados somente-leitura de proposito: o Grafana nao deve reescrever
+      # um arquivo versionado, e uma edicao feita na tela morre no proximo restart.
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   # -------------------------------------------------------------------------
   # Servicos
@@ -367,3 +438,11 @@ volumes:
   postgres-data:
   redis-data:
   rabbitmq-data:
+  # Series temporais coletadas. Tem volume, diferente do Jaeger: um grafico de latencia so diz
+  # alguma coisa comparado com o de ontem, e reiniciar o container nao deveria apagar essa
+  # comparacao. Os traces do Jaeger sao o oposto — servem para investigar uma requisicao especifica,
+  # agora, e nao ganham nada sobrevivendo ao restart.
+  prometheus-data:
+  # Guarda o que e do Grafana e nao do repositorio: preferencias, ultima pasta aberta, sessao.
+  # Os paineis e a fonte de dados nao moram aqui, e sim nos arquivos provisionados.
+  grafana-data:

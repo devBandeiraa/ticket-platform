@@ -192,10 +192,30 @@ management:
         # do frontend consome e o que se aponta numa demonstracao. `circuitbreakerevents` e
         # `retryevents` guardam o historico das ultimas transicoes — util para explicar por que o
         # circuito abriu, em vez de apenas mostrar que abriu.
-        include: health,info,circuitbreakers,circuitbreakerevents,retries,retryevents
+        include: health,info,prometheus,circuitbreakers,circuitbreakerevents,retries,retryevents
   endpoint:
     health:
       show-details: always
+
+  # Metricas no formato do Prometheus, servidas em /actuator/prometheus.
+  #
+  # O `percentiles-histogram` vale so para http.server.requests, e nao para tudo. Ele faz o
+  # Micrometer publicar a latencia em faixas cumulativas — os buckets — que sao o que permite
+  # calcular p95 do lado do Grafana, em vez de apenas media. E a media nao serviria: numa amostra
+  # em que 95 requisicoes levam 20ms e 5 levam 4s, ela da 220ms e parece saudavel, enquanto uma
+  # pessoa a cada vinte espera quatro segundos.
+  #
+  # O custo e cardinalidade. Cada faixa vira uma serie temporal propria, multiplicada por endpoint,
+  # metodo e status. Os limites abaixo existem para conter isso: sem eles o Micrometer cobre de
+  # nanossegundos a minutos, gerando dezenas de faixas que ficam vazias para sempre.
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 10s
   # Tracing distribuido.
   #
   # Amostragem em 100%: e uma decisao de projeto de estudo, e nao um padrao a copiar. Em producao
