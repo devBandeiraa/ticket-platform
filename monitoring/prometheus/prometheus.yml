@@ -1,0 +1,58 @@
+# De onde o Prometheus colhe as metricas da plataforma.
+#
+# Os alvos sao nomes de container, resolvidos pela rede interna do compose. Nenhum deles depende
+# de porta publicada no host: quem trocar a porta publicada do gateway para fugir de um conflito
+# local nao quebra a coleta.
+#
+# Nao ha descoberta automatica de servicos aqui de proposito. Ela existe (o Prometheus fala com
+# Kubernetes, Consul, DNS), mas seis alvos fixos e conhecidos nao justificam a indirecao — e uma
+# lista explicita e o documento mais legivel de quais processos compoem a plataforma.
+
+global:
+  # Dez segundos e curto para producao e proposital aqui: a demonstracao derruba um servico e
+  # observa o grafico reagir, e um intervalo de um minuto faria a plateia esperar em silencio.
+  scrape_interval: 10s
+  evaluation_interval: 10s
+  # Aparece como label em toda serie. Identifica de qual ambiente vieram os dados quando duas
+  # instalacoes desta plataforma mandam metricas para o mesmo lugar.
+  external_labels:
+    ambiente: docker-compose
+
+scrape_configs:
+  # O `job_name` vira o label `job` de cada serie, e e por ele que os paineis do Grafana separam
+  # um servico do outro. E, portanto, a identidade do servico na observabilidade — dai ser igual
+  # ao `spring.application.name` de cada modulo.
+  #
+  # Nao ha um `management.metrics.tags.application` correspondente nos servicos: seria a mesma
+  # informacao declarada em dois lugares, e duas fontes de verdade para o nome de um servico
+  # divergem no dia em que alguem renomeia um so.
+
+  - job_name: api-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["api-gateway:8080"]
+
+  - job_name: auth-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["auth-service:8081"]
+
+  - job_name: event-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["event-service:8082"]
+
+  - job_name: booking-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["booking-service:8083"]
+
+  - job_name: notification-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["notification-service:8084"]
+
+  - job_name: payment-simulator
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["payment-simulator:8085"]

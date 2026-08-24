@@ -1,0 +1,19 @@
+# Fonte de dados registrada na subida, sem ninguem clicar em nada.
+#
+# Provisionar em vez de configurar pela interface e o que torna a plataforma reproduzivel: um
+# `docker compose up` numa maquina limpa chega ao mesmo Grafana, com os mesmos paineis ja
+# funcionando. Configuracao feita na tela viveria no volume do container e sumiria num `down -v`.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # UID fixo, e nao gerado. Os JSONs dos dashboards apontam para esta fonte pelo UID; deixando
+    # o Grafana sortear um, cada instalacao geraria um valor diferente e os paineis subiriam
+    # todos com "datasource not found".
+    uid: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

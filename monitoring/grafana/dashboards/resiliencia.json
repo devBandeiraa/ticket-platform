@@ -1,0 +1,263 @@
+{
+  "uid": "ticket-resiliencia",
+  "title": "Resiliencia",
+  "description": "As defesas em acao: o circuito que para de chamar um vizinho doente, o retry que atravessa uma falha passageira do provedor de pagamento e o limite de requisicoes do gateway. E o painel que se abre durante a demonstracao de queda.",
+  "tags": ["ticket-platform", "resilience4j"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Circuito agora",
+      "description": "O Resilience4j publica um gauge por estado possivel, valendo 1 apenas no estado corrente. A expressao colapsa isso num numero unico — 0 fechado, 1 meio aberto, 2 aberto — porque um painel com quatro series binarias e ilegivel de relance.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name) (resilience4j_circuitbreaker_state{state=\"open\"}) * 2 + sum by (name) (resilience4j_circuitbreaker_state{state=\"half_open\"})",
+          "legendFormat": "{{name}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "vertical"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "FECHADO", "color": "green", "index": 0 },
+                "1": { "text": "MEIO ABERTO", "color": "orange", "index": 1 },
+                "2": { "text": "ABERTO", "color": "red", "index": 2 }
+              }
+            }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "state-timeline",
+      "title": "Estado dos circuit breakers ao longo do tempo",
+      "description": "A faixa vermelha e o intervalo em que o booking-service parou de chamar o event-service. A laranja curta logo depois e o meio aberto: as chamadas de teste que decidem se o vizinho voltou.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 18, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name) (resilience4j_circuitbreaker_state{state=\"open\"}) * 2 + sum by (name) (resilience4j_circuitbreaker_state{state=\"half_open\"})",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "center",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "fechado", "color": "green", "index": 0 },
+                "1": { "text": "meio aberto", "color": "orange", "index": 1 },
+                "2": { "text": "aberto", "color": "red", "index": 2 }
+              }
+            }
+          ],
+          "custom": { "lineWidth": 0, "fillOpacity": 80 },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Chamadas ao event-service, por desfecho",
+      "description": "As 'recusadas pelo circuito' sao o ponto todo do circuit breaker: chamadas que nem chegaram a sair pelo fio. Elas so aparecem depois que o circuito abre, e e quando elas sobem que o event-service para de receber carga de um servico que ja sabia que ele estava fora.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{name=\"event-service\"}[1m]))",
+          "legendFormat": "{{kind}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(resilience4j_circuitbreaker_not_permitted_calls_total{name=\"event-service\"}[1m]))",
+          "legendFormat": "recusadas pelo circuito"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "showPoints": "never", "stacking": { "mode": "normal" } }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "recusadas pelo circuito" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "successful" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Taxa de falha medida pelo circuito",
+      "description": "O numero que o proprio circuito usa para decidir. A linha tracejada e o limiar configurado (50%); quando a taxa a cruza com a janela minima preenchida, o circuito abre. Vale -1 enquanto nao houve chamadas suficientes para uma decisao — deliberadamente, para nao confundir 'nao sei ainda' com '0% de falha'.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "resilience4j_circuitbreaker_failure_rate",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": -1,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "dashed" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Pagamentos salvos pelo retry",
+      "description": "Cobrancas que falharam na primeira tentativa e passaram numa repeticao, na ultima hora. E a justificativa do retry existir traduzida em vendas que teriam sido perdidas sem ele.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(resilience4j_retry_calls_total{name=\"pagamento\",kind=\"successful_with_retry\"}[1h])) or vector(0)",
+          "legendFormat": "salvos"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "text", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Tentativas de pagamento, por desfecho",
+      "description": "O `failed_with_retry` e o unico que deveria preocupar: sao as cobrancas que gastaram as quatro tentativas e ainda assim nao passaram. O `successful_without_retry` e o caminho feliz e domina o grafico em operacao normal.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 10, "x": 6, "y": 14 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (kind) (rate(resilience4j_retry_calls_total{name=\"pagamento\"}[1m]))",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "showPoints": "never", "stacking": { "mode": "normal" } }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Requisicoes recusadas pelo gateway (429)",
+      "description": "O rate limiter em acao. Zero em uso normal; sobe quando alguem dispara uma rajada — que e exatamente o teste de carga que a plataforma existe para sobreviver.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"api-gateway\",status=\"429\"}[1m])) or vector(0)",
+          "legendFormat": "recusadas"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
