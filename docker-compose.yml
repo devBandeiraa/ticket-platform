@@ -395,6 +395,14 @@ services:
       # Origem do navegador, e nao nome de container: o preflight parte da maquina de quem
       # acessa. Precisa casar com a porta em que o frontend e publicado.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      # Fonte da pagina /status. Endereco interno: quem consulta o Prometheus e o gateway, nunca
+      # o navegador — publicar o Prometheus so por causa de uma pagina de status entregaria junto
+      # o nome de cada servico e cada metrica interna.
+      #
+      # Nao ha `depends_on` para o Prometheus, e e deliberado: o gateway sobe sem ele e a pagina
+      # responde 503 dizendo que perdeu a fonte. Amarrar a subida do gateway ao monitoramento
+      # faria a plataforma inteira depender de algo que so serve para observa-la.
+      PROMETHEUS_URL: ${PROMETHEUS_INTERNAL_URL:-http://prometheus:9090}
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
     depends_on:
