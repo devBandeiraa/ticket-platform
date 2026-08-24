@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,8 +33,16 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>Este teste cobre a metade gravavel do problema — que o contexto seja capturado e persistido.
  * A outra metade, o span do consumidor aparecer pendurado na arvore certa, so se confirma olhando
  * o Jaeger; esta no roteiro de verificacao manual.
+ *
+ * <p><strong>{@code @AutoConfigureObservability} nao e decoracao.</strong> O Spring Boot desliga
+ * tracing e exportacao de metricas em teste por padrao, e a razao e boa: sem isso, cada execucao da
+ * suite despejaria spans e metricas num backend real. O efeito colateral e que o propagador W3C nao
+ * e registrado — no lugar dele entra um {@code NoopTextMapPropagator}, cujo {@code inject} escreve
+ * num mapa vazio sem reclamar. Um teste que verifica propagacao precisa, portanto, religar
+ * explicitamente aquilo que ele existe para testar.
  */
 @SpringBootTest
+@AutoConfigureObservability
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("test")
 class TraceNaOutboxIntegrationTest {

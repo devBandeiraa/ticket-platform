@@ -43,6 +43,17 @@ class RetryDePagamentoIntegrationTest {
     @Autowired
     private PagamentoClient pagamentoClient;
 
+    /**
+     * Marco zero do teste corrente.
+     *
+     * <p>O {@code getRequestCount()} do MockWebServer conta desde que o servidor subiu e nao volta
+     * a zero: esvaziar a fila de requisicoes gravadas nao o reinicia, porque sao coisas distintas.
+     * Como o servidor e estatico — precisa existir antes do {@code @DynamicPropertySource} —, ele e
+     * o mesmo para os quatro testes, e comparar o total contra um numero fixo daria um resultado
+     * dependente da ordem em que o JUnit resolveu executa-los.
+     */
+    private int requisicoesAntesDoTeste;
+
     @DynamicPropertySource
     static void apontarParaOProvedorDeMentira(DynamicPropertyRegistry registro) {
         registro.add("booking.pagamento.url", () -> PROVEDOR.url("/").toString());
@@ -53,6 +64,12 @@ class RetryDePagamentoIntegrationTest {
         while (PROVEDOR.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
             // apenas esvazia a fila do teste anterior
         }
+        requisicoesAntesDoTeste = PROVEDOR.getRequestCount();
+    }
+
+    /** Quantas requisicoes chegaram ao provedor durante este teste, e nao desde que ele subiu. */
+    private int requisicoesRecebidas() {
+        return PROVEDOR.getRequestCount() - requisicoesAntesDoTeste;
     }
 
     @Test
@@ -68,7 +85,7 @@ class RetryDePagamentoIntegrationTest {
         assertThat(autorizacao.authorizationCode()).isEqualTo("AUT-ABC123");
         // Tres idas ao provedor: a original e duas repeticoes. Uma venda que teria sido perdida
         // na primeira tentativa.
-        assertThat(PROVEDOR.getRequestCount()).isEqualTo(3);
+        assertThat(requisicoesRecebidas()).isEqualTo(3);
     }
 
     @Test
@@ -108,7 +125,7 @@ class RetryDePagamentoIntegrationTest {
 
         // Uma unica ida. Repetir uma recusa gastaria quatro tentativas e cerca de um segundo e
         // meio de espera para chegar exatamente a mesma resposta, com o usuario olhando a tela.
-        assertThat(PROVEDOR.getRequestCount()).isEqualTo(1);
+        assertThat(requisicoesRecebidas()).isEqualTo(1);
     }
 
     @Test
@@ -124,7 +141,7 @@ class RetryDePagamentoIntegrationTest {
 
         // Quatro no total, conforme max-attempts. Insistir alem disso empilharia requisicoes sobre
         // um provedor que ja demonstrou nao estar respondendo.
-        assertThat(PROVEDOR.getRequestCount()).isEqualTo(4);
+        assertThat(requisicoesRecebidas()).isEqualTo(4);
     }
 
     private MockResponse autorizacao(String comprovante) {
