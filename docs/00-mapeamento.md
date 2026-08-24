@@ -7,6 +7,12 @@ negócio, para que as decisões estruturais fossem tomadas de forma explícita.
 O objetivo do projeto não é demonstrar CRUDs isolados, e sim resolver um problema real de
 concorrência distribuída: **impedir overselling de ingressos sob carga simultânea**.
 
+> **Como ler este documento.** O corpo é o desenho original, da Fase 0. Cada fase seguinte
+> acrescentou linhas às tabelas de [riscos](#5-riscos-técnicos) e de
+> [decisões](#6-decisões-registradas), sempre marcadas com a fase — inclusive quando a fase
+> contradisse o desenho inicial, como no caso da coluna `version` que foi prevista aqui e
+> removida depois. As catorze fases estão no histórico de Pull Requests.
+
 ---
 
 ## Visão geral
@@ -42,6 +48,17 @@ concorrência distribuída: **impedir overselling de ingressos sob carga simult�
                                      └───────────────────────┘
 ```
 
+Duas peças entraram depois da Fase 0 e não estão no desenho acima, porque não pertencem ao
+caminho da reserva:
+
+- **`payment-simulator` (:8085)**, da Fase 11. O `booking-service` o chama ao pagar, com retry.
+  É um provedor externo de mentira, instável de propósito: sem um terceiro que falhe, a
+  resiliência seria configuração sem prova.
+- **Jaeger, Prometheus e Grafana**, das Fases 12 e 13. Nenhum dos três é chamado pela aplicação:
+  os serviços exportam spans por OTLP e expõem `/actuator/prometheus`, e quem vai buscar é o
+  Prometheus. A direção da seta importa — um serviço fora do ar não *empurra* nada, e é
+  exatamente essa ausência que vira o sinal.
+
 | Serviço | Porta | Banco | Papel |
 |---|---|---|---|
 | `api-gateway` | 8080 | — | Roteamento, validação de JWT, rate limiting |
@@ -49,6 +66,7 @@ concorrência distribuída: **impedir overselling de ingressos sob carga simult�
 | `event-service` | 8082 | `eventdb` | Catálogo e gestão de eventos |
 | `booking-service` | 8083 | `bookingdb` | Reserva com lock distribuído — núcleo do projeto |
 | `notification-service` | 8084 | — | Consumidor de fila, notificação assíncrona |
+| `payment-simulator` *(Fase 11)* | 8085 | — | Provedor de pagamento falso, com falha transitória e recusa definitiva |
 
 ---
 
@@ -669,6 +687,19 @@ compose.
 | 33 | Orçamento de tentativas da outbox vira cronômetro: 5 tentativas a cada 2s = 10s de broker fora do ar perdem o evento | **Alta** | **Encontrado na Fase 9**, na primeira subida em Kubernetes, por uma falha de DNS passageira — a reserva ficou paga e a notificação virou `FAILED`. Falha de transporte deixou de consumir tentativa; o orçamento agora vale só para mensagem defeituosa |
 | 34 | Probe `httpGet` com `host: 127.0.0.1` aponta para o loopback do **nó**, não do pod | Média | **Encontrado na Fase 9:** a lição do healthcheck do compose não transfere — lá o comando roda dentro do container, aqui quem disca é o kubelet. Sem `host`, o padrão é o IP do pod, que é o correto |
 | 15 *(revisitado)* | Job agendado com múltiplas réplicas executaria a varredura N vezes | Baixa | **Verificado na Fase 9** com duas réplicas reais: a transição condicional protege a expiração, e a publicação duplicada da outbox é absorvida pela deduplicação no consumidor. Uma publicação, uma notificação |
+| 35 | Erro relatado por um usuário precisa ser encontrado em cinco containers, e sem identificador comum a busca vira comparação de horários — que falha justamente sob carga, com dezenas de requisições por segundo e relógios não perfeitamente alinhados | Alta | **Resolvido na Fase 10:** `X-Request-Id` garantido no gateway, propagado a todos os serviços e devolvido no cabeçalho **e** no corpo do erro. O gateway é o único ponto por onde todo o tráfego externo passa, então é o único lugar onde se pode afirmar que nenhuma requisição segue adiante sem identificação |
+| 36 | `X-Request-Id` vindo do cliente vai parar em toda linha de log; aceito cru, permite injetar quebras de linha e escrever entradas falsas com aparência de terem sido produzidas pelo serviço *(log forging)* | Média | **Resolvido na Fase 10:** só é aceito o que casar com `[A-Za-z0-9_-]{8,64}`. Um id malformado não vira erro — a requisição é legítima, só o cabeçalho é que não serve, e recusá-la trocaria um problema de observabilidade por um de disponibilidade |
+| 37 | MDC em `ThreadLocal` não funciona no gateway: em WebFlux a requisição salta entre threads da event loop, e o id gravado num estágio não estaria no seguinte — ou pior, seria o de outra requisição | Média | **Resolvido na Fase 10:** no gateway o id vive num atributo da troca, que acompanha a requisição; o MDC fica só nos serviços de servlet, onde a premissa de uma thread por requisição vale |
+| 38 | `event-service` lento ou fora do ar prende a thread de cada reserva de evento ainda não hidratado até o timeout estourar, e a fila de reservas cresce esperando um serviço que não vai responder | Alta | **Resolvido na Fase 11:** circuit breaker do Resilience4j na única chamada síncrona entre serviços. Aberto, ele recusa na hora, sem sair pelo fio |
+| 39 | Contar `404` como falha do circuito faria um punhado de gente digitando ids errados derrubar a hidratação de **todos** os eventos legítimos | **Alta** | **Resolvido na Fase 11:** `EventoNaoDisponivelException` em `ignore-exceptions`. Um `404` significa que o serviço está saudável e respondeu depressa — decidir o que *não* conta como falha é a parte difícil da configuração |
+| 40 | Circuito aberto faria o `/actuator/health` responder `DOWN`, e como é esse mesmo endereço que o healthcheck do compose consulta, o Docker reiniciaria o `booking-service` — que estaria sendo morto por ter se defendido corretamente da queda de outro | Média | **Resolvido na Fase 11:** `allow-health-indicator-to-fail: false`. O estado do circuito continua visível dentro do corpo do `/health`, mas não define o status geral |
+| 41 | Retry de pagamento com chave de idempotência nova a cada tentativa cobraria o cliente mais de uma vez pela mesma reserva | **Alta** | **Resolvido na Fase 11:** a chave é fixada antes da primeira tentativa e repetida em todas. Coberto por teste que falha se a chave variar. O backoff leva jitter: sem ele, todas as tentativas que falharam juntas voltam juntas e o provedor que se recuperava leva a mesma rajada |
+| 42 | O trace se perde na travessia da outbox: a mensagem é publicada segundos depois, por um job, numa thread sem relação com a requisição — e a notificação viraria uma árvore solta que ninguém relaciona à compra | Média | **Resolvido na Fase 12:** o contexto W3C é gravado numa coluna da própria linha da outbox e restaurado na publicação |
+| 43 | O Spring Boot **desliga** a observabilidade nos testes por padrão: o propagador vira `NoopTextMapPropagator`, cujo `inject` escreve num mapa vazio em silêncio — e o teste do risco 42 passaria sem provar nada | Média | **Encontrado na Fase 12** ao escrever o teste. `@AutoConfigureObservability` religa a instrumentação; a anotação não é decoração, é o que faz o teste ter objeto |
+| 44 | O próprio monitoramento domina o que ele monitora: o scrape do Prometheus a cada 10s e o healthcheck do Docker geraram **198 de 200 traces** numa janela de 90 segundos, e entraram na latência p95 como se fossem tráfego de usuário | Média | **Resolvido na Fase 13:** um `ObservationPredicate` exclui `/actuator` de traces e métricas. São duas classes homônimas de contexto — servlet e reativa, em pacotes diferentes e sem supertipo comum —, então há uma implementação para cada |
+| 45 | Um painel de status no frontend exigiria publicar o Prometheus para o navegador, entregando junto o nome de cada serviço, cada endpoint e cada métrica interna a quem abrisse o endereço | Média | **Resolvido na Fase 14:** o gateway agrega em `GET /api/status` e devolve o resultado já traduzido. O gateway já é o único endereço que o navegador conhece; abrir um segundo contradiria isso |
+| 46 | Prometheus fora do ar faria o painel pintar seis serviços saudáveis de vermelho, mandando alguém investigar o que não está quebrado | Média | **Resolvido na Fase 14:** falha de coleta vira `503 METRICS_UNAVAILABLE`, com a tela dizendo que perdeu a fonte. "Sem métricas" e "tudo fora" são leituras opostas |
+| 47 | O circuito não fecha sozinho depois que o `event-service` volta: o `404` é ignorado (risco 39) e a hidratação acontece uma vez por evento, então reservar num evento já hidratado não gera chamada alguma — e o estado exibido fica em *meio aberto* indefinidamente | Baixa | **Encontrado na Fase 14**, verificando o painel num ciclo completo de queda e volta. Não é falha de correção — meio aberto deixa chamadas passarem —, mas o estado exibido engana. Fechar exige três chamadas bem-sucedidas, ou seja, três eventos novos. Registrado como o que a demonstração precisa dizer, e não corrigido: baixar `permitted-number-of-calls-in-half-open-state` deixaria a demonstração mais fácil ao custo de um circuito que fecha com menos evidência |
 
 ---
 
@@ -719,3 +750,17 @@ compose.
 | Réplicas do `booking-service` *(Fase 9)* | Duas, e não por vazão | É o que exercita num cluster real o que o código afirma desde a Fase 4: outbox e job de expiração já eram seguros com concorrência entre instâncias |
 | Falha de transporte na outbox *(Fase 9)* | Não consome tentativa | O orçamento existe para mensagem defeituosa, que falhará de novo por mais que se insista. Broker fora do ar não diz nada sobre a mensagem, e gastar tentativa nisso transformava um limite de robustez num prazo de validade |
 | Persistência do Redis no cluster *(Fase 9)* | Com volume | Quase tudo que ele guarda é descartável — locks de 3s, baldes que se refazem —, mas a marca de deduplicação tem TTL de 24h, e perdê-la num restart reabriria a janela de notificação duplicada que a Fase 5 fechou |
+| Origem do `X-Request-Id` *(Fase 10)* | Gerado no gateway, não em cada serviço | O gateway é o único ponto por onde todo o tráfego externo passa. Atribuir o id em cada serviço deixaria de fora justamente as requisições recusadas na borda — as que mais precisam ser encontradas depois |
+| Id de correlação vindo do cliente *(Fase 10)* | Aceito, se passar no formato | Se um dia houver um balanceador ou um app móvel que já gere o próprio, a corrente continua inteira em vez de recomeçar na borda. A validação de formato é o que impede que essa abertura vire log forging |
+| Aleatoriedade do id *(Fase 10)* | `ThreadLocalRandom`, não `SecureRandom` | O id não é credencial: torná-lo imprevisível não protegeria nada, já que quem quisesse forjar um pode simplesmente enviar o cabeçalho. O que se ganha é evitar disputa por uma instância compartilhada a cada requisição — custo que um gateway não deve pagar |
+| Janela do circuit breaker *(Fase 11)* | Por contagem, não por tempo | A hidratação acontece uma vez por evento, então o volume é baixo e irregular. Numa janela por tempo, um minuto com duas chamadas das quais uma falhou daria 50% de falha e abriria o circuito sobre quase nenhuma evidência |
+| Provedor de pagamento *(Fase 11)* | Serviço próprio, instável de propósito | Simular a falha dentro do `booking-service` provaria apenas que o `if` funciona. Com um serviço separado, o retry atravessa a rede de verdade — inclusive o caso em que a resposta se perde depois de o pagamento ter sido processado |
+| Recusa de pagamento *(Fase 11)* | Não é retentada | Recusa é resposta, não falha. Repeti-la gastaria quatro tentativas para chegar à mesma negativa, com o usuário esperando por nada |
+| Propagação do trace na outbox *(Fase 12)* | Coluna na própria linha da outbox | O contexto precisa sobreviver ao commit e à troca de thread. Guardá-lo em memória o perderia no restart, e num cabeçalho do broker ele só existiria depois da publicação — que é justamente o trecho que se quer amarrar |
+| Armazenamento do Jaeger *(Fase 12)* | `all-in-one`, em memória | São dados de diagnóstico de desenvolvimento. Um Elasticsearch ao lado triplicaria o tempo de subida do compose para guardar traces que o próximo `down` deveria apagar de qualquer forma |
+| Coleta de métricas *(Fase 13)* | Pull, e não push | Um serviço fora do ar simplesmente para de responder, e **essa ausência é o sinal** — a série `up` vai a zero sozinha. Com push, silêncio é ambíguo: pode ser o serviço caído ou o agente de envio quebrado |
+| Identidade do serviço nas métricas *(Fase 13)* | O `job_name` do Prometheus | Acrescentar `management.metrics.tags.application` guardaria o mesmo nome duas vezes, em dois arquivos diferentes, com todo o potencial de divergirem |
+| Painéis do Grafana *(Fase 13)* | JSON versionado, com `allowUiUpdates: false` | Painel montado pela interface é um binário invisível dentro de um volume: não aparece em diff, não entra por Pull Request e some no primeiro `docker compose down -v` |
+| Origem dos dados do `/status` *(Fase 14)* | Agregador no gateway | Publicar o Prometheus para o navegador entregaria o nome de cada serviço, cada endpoint e cada métrica interna a quem abrisse o endereço — e desmontaria a regra de que o gateway é o único endereço que o navegador conhece |
+| Latência sem tráfego *(Fase 14)* | `null` atravessa a API inteira | Uma divisão por taxa zero devolve `NaN`, e convertê-lo em zero no caminho faria a tela dizer "0.0 ms", que lê como *responde instantaneamente* — o oposto de *ninguém chamou*. O nulo custa um campo opcional e evita uma mentira |
+| Falha de coleta no `/status` *(Fase 14)* | `503` próprio, e não seis serviços vermelhos | São diagnósticos opostos: um manda investigar o painel, o outro manda investigar seis serviços saudáveis |
