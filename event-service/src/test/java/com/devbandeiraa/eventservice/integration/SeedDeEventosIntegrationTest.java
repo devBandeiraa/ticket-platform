@@ -4,12 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.devbandeiraa.eventservice.domain.Event;
 import com.devbandeiraa.eventservice.domain.EventStatus;
+import com.devbandeiraa.eventservice.domain.Sector;
 import com.devbandeiraa.eventservice.dto.response.EventSummaryResponse;
 import com.devbandeiraa.eventservice.dto.response.PaginaResponse;
 import com.devbandeiraa.eventservice.repository.EventRepository;
 import com.devbandeiraa.eventservice.service.EventService;
 import com.devbandeiraa.eventservice.support.PostgresContainerConfig;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Verifica o seed do catalogo de desenvolvimento.
@@ -97,6 +101,45 @@ class SeedDeEventosIntegrationTest {
                 .allSatisfy(evento -> assertThat(evento.getImageUrl())
                         .as("evento publicado '%s' sem capa", evento.getName())
                         .isNotBlank());
+    }
+
+    /**
+     * O seed escreve `total_tickets` e `price` a mao, em SQL, porque em SQL nao ha o
+     * EventService para deriva-los. Este teste e o que impede as duas escritas de divergirem:
+     * mexer num setor e esquecer da coluna do evento passaria despercebido — o catalogo
+     * anunciaria uma capacidade que a casa nao tem, e um "a partir de" que nenhum setor cobra.
+     */
+    // Transacional porque a colecao de setores e LAZY: fora de uma sessao aberta, le-la de uma
+    // entidade ja desanexada estoura. Nao ha escrita aqui — a transacao serve so a leitura.
+    @Test
+    @Transactional
+    @DisplayName("no seed, capacidade e preco do evento concordam com os setores")
+    void osDerivadosDevemConcordarComOsSetores() {
+        assertThat(eventRepository.findAll()).allSatisfy(evento -> {
+            assertThat(evento.getSectors())
+                    .as("evento '%s' sem setor algum", evento.getName())
+                    .isNotEmpty();
+
+            int capacidadeDosSetores = evento.getSectors().stream()
+                    .mapToInt(Sector::getCapacidade)
+                    .sum();
+
+            BigDecimal menorPreco = evento.getSectors().stream()
+                    .map(Sector::getPrice)
+                    .min(Comparator.naturalOrder())
+                    .orElseThrow();
+
+            assertThat(evento.getTotalTickets())
+                    .as("evento '%s': total_tickets nao bate com a soma dos setores",
+                            evento.getName())
+                    .isEqualTo(capacidadeDosSetores);
+
+            assertThat(evento.getPrice())
+                    .as("evento '%s': price nao e o menor preco entre os setores",
+                            evento.getName())
+                    // Por valor, e nao por escala: 70 e 70.00 sao o mesmo preco.
+                    .isEqualByComparingTo(menorPreco);
+        });
     }
 
     /**

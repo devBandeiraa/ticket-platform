@@ -18,7 +18,7 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white)](#observabilidade)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
-[![Testes](https://img.shields.io/badge/testes-283-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-303-success?style=flat-square)](#testes)
 
 </div>
 
@@ -83,9 +83,10 @@ ela funciona.
 ## Para quem está avaliando
 
 **Três minutos, sem abrir código.** Suba a plataforma (instruções logo abaixo), vá em
-*Concorrência*, escolha o evento **Show Lotado** — 10 ingressos — e dispare 30 reservas
-simultâneas. O resultado vem separado por código de resposta: quantas foram confirmadas, quantas
-levaram `409 SOLD_OUT`, quantas morreram no lock. O número que importa é o primeiro: **vendidos a
+*Concorrência*, escolha a **Sessão única: Orquestra de Câmara da Lapa** — cinquenta lugares, o
+menor evento do catálogo — e dispare duzentas reservas simultâneas. O resultado vem separado por
+código de resposta: quantas foram confirmadas, quantas levaram `409 SOLD_OUT`, quantas morreram no
+lock. O número que importa é o primeiro: **vendidos a
 mais**.
 
 **Dez minutos, com código.** Nesta ordem:
@@ -474,7 +475,7 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**287 no total** — 264 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**303 no total** — 280 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 23 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -588,9 +589,9 @@ código de negócio, e atualizado a cada fase:
 - Modelo de dados, tabela por tabela, com a razão de cada constraint
 - Contratos de API e a tabela de rotas do gateway
 - O fluxo da reserva passo a passo, do clique ao commit
-- **47 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
+- **54 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
   depois, ao subir em Kubernetes ou ao olhar o painel durante uma queda de verdade
-- **57 decisões registradas**, cada uma com a justificativa e a alternativa recusada
+- **65 decisões registradas**, cada uma com a justificativa e a alternativa recusada
 
 Cada uma das catorze fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
 assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)

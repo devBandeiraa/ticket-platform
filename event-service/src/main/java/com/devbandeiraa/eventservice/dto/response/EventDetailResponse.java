@@ -4,6 +4,7 @@ import com.devbandeiraa.eventservice.domain.Event;
 import com.devbandeiraa.eventservice.domain.EventStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -23,6 +24,7 @@ public record EventDetailResponse(
         BigDecimal price,
         int totalTickets,
         String imageUrl,
+        List<SectorResponse> sectors,
         EventStatus status,
         UUID createdBy,
         Instant createdAt,
@@ -38,6 +40,7 @@ public record EventDetailResponse(
                 evento.getPrice(),
                 evento.getTotalTickets(),
                 evento.getImageUrl(),
+                evento.getSectors().stream().map(SectorResponse::de).toList(),
                 evento.getStatus(),
                 evento.getCreatedBy(),
                 evento.getCreatedAt(),

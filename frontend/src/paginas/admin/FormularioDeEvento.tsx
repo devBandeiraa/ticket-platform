@@ -3,20 +3,28 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { alterarEvento, buscarParaAdmin, criarEvento } from '../../api/eventos'
 import { ErroDaApi } from '../../api/cliente'
-import type { EventoFormulario } from '../../api/tipos'
+import type { EventoFormulario, SetorFormulario } from '../../api/tipos'
 import { Capa } from '../../componentes/Capa'
 import { Carregando, Erro, mensagemDe } from '../../componentes/Estados'
 import { Botao, Campo, Cartao, SeloDeEvento } from '../../componentes/Ui'
-import { deCampoLocal, paraCampoLocal } from '../../componentes/formato'
+import { deCampoLocal, dinheiro, paraCampoLocal } from '../../componentes/formato'
+
+const SETOR_NOVO: SetorFormulario = { name: '', price: 0, rowsCount: 10, seatsPerRow: 20 }
 
 const VAZIO: EventoFormulario = {
   name: '',
   description: '',
   venue: '',
   eventDate: '',
-  totalTickets: 100,
-  price: 0,
+  sectors: [{ ...SETOR_NOVO, name: 'Plateia' }],
   imageUrl: '',
+}
+
+/** Capacidade e "a partir de" como o servidor vai derivar — a tela so antecipa a conta. */
+function derivados(setores: SetorFormulario[]) {
+  const capacidade = setores.reduce((soma, s) => soma + s.rowsCount * s.seatsPerRow, 0)
+  const menorPreco = setores.length ? Math.min(...setores.map((s) => s.price)) : 0
+  return { capacidade, menorPreco }
 }
 
 /** Cria e edita. Os campos editaveis sao os mesmos nos dois casos, como no backend. */
@@ -41,8 +49,12 @@ export function FormularioDeEvento() {
       description: existente.data.description ?? '',
       venue: existente.data.venue,
       eventDate: paraCampoLocal(existente.data.eventDate),
-      totalTickets: existente.data.totalTickets,
-      price: existente.data.price,
+      sectors: existente.data.sectors.map((setor) => ({
+        name: setor.name,
+        price: setor.price,
+        rowsCount: setor.rowsCount,
+        seatsPerRow: setor.seatsPerRow,
+      })),
       // O input e controlado e nao aceita null; o backend devolve o vazio como null de volta.
       imageUrl: existente.data.imageUrl ?? '',
     })
@@ -66,6 +78,35 @@ export function FormularioDeEvento() {
   function alterar<C extends keyof EventoFormulario>(campo: C, valor: EventoFormulario[C]) {
     setDados((atual) => ({ ...atual, [campo]: valor }))
   }
+
+  function alterarSetor<C extends keyof SetorFormulario>(
+    indice: number,
+    campo: C,
+    valor: SetorFormulario[C],
+  ) {
+    setDados((atual) => ({
+      ...atual,
+      sectors: atual.sectors.map((setor, i) => (i === indice ? { ...setor, [campo]: valor } : setor)),
+    }))
+  }
+
+  function adicionarSetor() {
+    setDados((atual) => ({ ...atual, sectors: [...atual.sectors, { ...SETOR_NOVO }] }))
+  }
+
+  function removerSetor(indice: number) {
+    setDados((atual) => ({ ...atual, sectors: atual.sectors.filter((_, i) => i !== indice) }))
+  }
+
+  /*
+    Publicado, o evento pode ter reservas, e o booking-service ja copiou a capacidade. O
+    servidor recusa com 409 EVENT_LAYOUT_LOCKED; aqui os campos ficam desabilitados para o
+    admin nao descobrir isso depois de digitar. A guarda de verdade continua sendo a do servidor
+    — desabilitar um input nao impede ninguem de mandar a requisicao na mao.
+  */
+  const bloqueado = existente.data?.status !== undefined && existente.data.status !== 'DRAFT'
+
+  const { capacidade, menorPreco } = derivados(dados.sectors)
 
   if (editando && existente.isPending) return <Carregando />
   if (editando && existente.isError) return <Erro erro={existente.error} />
@@ -155,27 +196,97 @@ export function FormularioDeEvento() {
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Campo
-              rotulo="Ingressos"
-              type="number"
-              min={1}
-              required
-              value={dados.totalTickets}
-              onChange={(e) => alterar('totalTickets', Number(e.target.value))}
-              erro={campos?.totalTickets}
-            />
-            <Campo
-              rotulo="Preco (R$)"
-              type="number"
-              min={0}
-              step="0.01"
-              required
-              value={dados.price}
-              onChange={(e) => alterar('price', Number(e.target.value))}
-              erro={campos?.price}
-            />
-          </div>
+          <fieldset className="rounded-md border border-borda p-4">
+            <legend className="px-1 text-sm text-suave">Setores</legend>
+
+            {/* Capacidade e preco do evento nao sao mais campos: derivam daqui. A tela mostra
+                a conta enquanto o admin digita, para ele nao descobrir o resultado so ao salvar. */}
+            <p className="mb-3 text-xs text-suave">
+              {capacidade} lugares no total, a partir de {dinheiro(menorPreco)}
+              {bloqueado && ' — o evento ja foi publicado, e a planta nao pode mais mudar'}
+            </p>
+
+            <div className="space-y-3">
+              {dados.sectors.map((setor, indice) => (
+                <div key={indice} className="grid grid-cols-2 gap-2 sm:grid-cols-9">
+                  <div className="col-span-2 sm:col-span-3">
+                    <Campo
+                      rotulo="Nome"
+                      required
+                      maxLength={60}
+                      disabled={bloqueado}
+                      value={setor.name}
+                      onChange={(e) => alterarSetor(indice, 'name', e.target.value)}
+                      erro={campos?.[`sectors[${indice}].name`]}
+                    />
+                  </div>
+                  <Campo
+                    rotulo="Preco"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    required
+                    disabled={bloqueado}
+                    value={setor.price}
+                    onChange={(e) => alterarSetor(indice, 'price', Number(e.target.value))}
+                    erro={campos?.[`sectors[${indice}].price`]}
+                  />
+                  <Campo
+                    rotulo="Filas"
+                    type="number"
+                    min={1}
+                    max={200}
+                    required
+                    disabled={bloqueado}
+                    value={setor.rowsCount}
+                    onChange={(e) => alterarSetor(indice, 'rowsCount', Number(e.target.value))}
+                    erro={campos?.[`sectors[${indice}].rowsCount`]}
+                  />
+                  <Campo
+                    rotulo="Por fila"
+                    type="number"
+                    min={1}
+                    max={100}
+                    required
+                    disabled={bloqueado}
+                    value={setor.seatsPerRow}
+                    onChange={(e) => alterarSetor(indice, 'seatsPerRow', Number(e.target.value))}
+                    erro={campos?.[`sectors[${indice}].seatsPerRow`]}
+                  />
+                  <div className="flex items-end sm:col-span-2">
+                    <span className="mb-2 text-xs text-suave">
+                      = {setor.rowsCount * setor.seatsPerRow}
+                    </span>
+                    {/* O ultimo setor nao pode sair: um evento sem setor nao tem casa. */}
+                    {dados.sectors.length > 1 && !bloqueado && (
+                      <button
+                        type="button"
+                        onClick={() => removerSetor(indice)}
+                        aria-label={`Remover o setor ${setor.name || indice + 1}`}
+                        className="mb-1 ml-auto rounded-md px-2 py-1 text-xs text-suave transition-colors hover:text-erro focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca"
+                      >
+                        remover
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {!bloqueado && (
+              <button
+                type="button"
+                onClick={adicionarSetor}
+                className="mt-3 rounded-md border border-borda px-3 py-1.5 text-xs text-suave transition-colors hover:border-marca hover:text-marca focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca"
+              >
+                + setor
+              </button>
+            )}
+
+            {campos?.sectors && (
+              <span className="mt-2 block text-xs text-erro">{campos.sectors}</span>
+            )}
+          </fieldset>
 
           {salvamento.error != null && (
             <p className="rounded-md bg-erro/10 px-3 py-2 text-sm text-erro">

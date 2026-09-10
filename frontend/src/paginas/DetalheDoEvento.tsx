@@ -81,9 +81,35 @@ export function DetalheDoEvento() {
             {evento.data.description}
           </p>
         )}
+
+        {/* A planta da casa. Ainda e uma lista, e nao o mapa: escolher o lugar depende de saber
+            quais estao livres, e essa informacao mora no booking-service. */}
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-suave">Setores</h2>
+          <ul className="mt-3 divide-y divide-borda/60 border-y border-borda/60">
+            {evento.data.sectors.map((setor) => (
+              <li key={setor.id} className="flex items-baseline justify-between gap-4 py-2.5">
+                <div>
+                  <span className="text-sm">{setor.name}</span>
+                  <span className="ml-2 text-xs text-suave">
+                    {setor.rowsCount} filas de {setor.seatsPerRow} &middot; {setor.capacity} lugares
+                  </span>
+                </div>
+                <span className="numerico text-sm font-medium text-marca">
+                  {dinheiro(setor.price)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <Cartao className="h-fit">
+        {/* Com mais de um setor, `price` e o MENOR deles. Exibi-lo sem a ressalva faria a tela
+            anunciar como preco do evento o valor do setor mais barato. */}
+        {evento.data.sectors.length > 1 && (
+          <p className="text-xs text-suave">a partir de</p>
+        )}
         <p className="numerico text-2xl font-semibold text-marca">{dinheiro(evento.data.price)}</p>
 
         <p className="mt-2 text-sm text-suave">

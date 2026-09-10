@@ -9,7 +9,9 @@ import static org.mockito.Mockito.when;
 
 import com.devbandeiraa.eventservice.domain.Event;
 import com.devbandeiraa.eventservice.domain.EventStatus;
+import com.devbandeiraa.eventservice.domain.LayoutDeSetor;
 import com.devbandeiraa.eventservice.dto.request.EventRequest;
+import com.devbandeiraa.eventservice.dto.request.SectorRequest;
 import com.devbandeiraa.eventservice.exception.EventNotEditableException;
 import com.devbandeiraa.eventservice.exception.EventNotFoundException;
 import com.devbandeiraa.eventservice.repository.EventRepository;
@@ -17,6 +19,7 @@ import com.devbandeiraa.eventservice.service.EventService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -156,8 +159,7 @@ class EventServiceTest {
                 "Uma noite inesquecivel",
                 "Estadio Municipal",
                 Instant.now().plus(30, ChronoUnit.DAYS),
-                500,
-                new BigDecimal("150.00"),
+                List.of(new SectorRequest("Plateia", new BigDecimal("150.00"), 25, 20)),
                 "https://cdn.exemplo.test/capas/show-de-rock.jpg");
     }
 
@@ -167,9 +169,8 @@ class EventServiceTest {
                 "Uma noite inesquecivel",
                 "Estadio Municipal",
                 Instant.now().plus(30, ChronoUnit.DAYS),
-                500,
-                new BigDecimal("150.00"),
                 "https://cdn.exemplo.test/capas/show-de-rock.jpg",
-                ID_DO_ADMIN);
+                ID_DO_ADMIN,
+                List.of(new LayoutDeSetor("Plateia", new BigDecimal("150.00"), 25, 20)));
     }
 }

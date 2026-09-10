@@ -50,22 +50,53 @@ export interface EventoResumo {
   imageUrl: string | null
 }
 
+/**
+ * Um setor da casa, como o servidor o descreve.
+ *
+ * Vem com as dimensoes, e nao com a lista de lugares: com filas e lugares por fila, a tela
+ * desenha a grade inteira. A disponibilidade de cada lugar nao esta aqui — quem sabe o que ja
+ * foi vendido e o booking-service.
+ */
+export interface Setor {
+  id: string
+  name: string
+  price: number
+  rowsCount: number
+  seatsPerRow: number
+  /** Rotulos prontos: 'A', 'B', ... 'AA'. Vem do servidor para as duas pontas nao divergirem. */
+  rowLabels: string[]
+  capacity: number
+}
+
 export interface EventoDetalhe extends EventoResumo {
   description: string | null
+  sectors: Setor[]
   status: StatusDoEvento
   createdBy: string
   createdAt: string
   updatedAt: string
 }
 
-/** Corpo de criacao e de alteracao — os campos editaveis sao os mesmos nos dois casos. */
+/** Um setor como o admin o envia: sem id, sem rotulos e sem capacidade — o servidor os deriva. */
+export interface SetorFormulario {
+  name: string
+  price: number
+  rowsCount: number
+  seatsPerRow: number
+}
+
+/**
+ * Corpo de criacao e de alteracao — os campos editaveis sao os mesmos nos dois casos.
+ *
+ * Sem `totalTickets` e sem `price`: os dois passaram a ser derivados dos setores. Envia-los
+ * permitiria que discordassem da planta, e o catalogo anunciaria uma casa que nao existe.
+ */
 export interface EventoFormulario {
   name: string
   description?: string | null
   venue: string
   eventDate: string
-  totalTickets: number
-  price: number
+  sectors: SetorFormulario[]
   imageUrl?: string | null
 }
 

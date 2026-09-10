@@ -2,15 +2,18 @@ package com.devbandeiraa.eventservice.service;
 
 import com.devbandeiraa.eventservice.domain.Event;
 import com.devbandeiraa.eventservice.domain.EventStatus;
+import com.devbandeiraa.eventservice.domain.LayoutDeSetor;
 import com.devbandeiraa.eventservice.dto.request.EventRequest;
 import com.devbandeiraa.eventservice.dto.response.EventDetailResponse;
 import com.devbandeiraa.eventservice.dto.response.EventSummaryResponse;
 import com.devbandeiraa.eventservice.dto.response.PaginaResponse;
 import com.devbandeiraa.eventservice.exception.EventNotEditableException;
 import com.devbandeiraa.eventservice.exception.EventNotFoundException;
+import com.devbandeiraa.eventservice.exception.LayoutNaoAlteravelException;
 import com.devbandeiraa.eventservice.repository.EventRepository;
 import com.devbandeiraa.eventservice.repository.EventSpecifications;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,10 +99,9 @@ public class EventService {
                 requisicao.description(),
                 requisicao.venue(),
                 requisicao.eventDate(),
-                requisicao.totalTickets(),
-                requisicao.price(),
                 requisicao.imageUrl(),
-                adminId);
+                adminId,
+                layoutDe(requisicao));
 
         Event salvo = eventRepository.save(evento);
         log.info("evento criado: id={} nome='{}' por admin={}", salvo.getId(), salvo.getName(), adminId);
@@ -107,17 +109,34 @@ public class EventService {
         return EventDetailResponse.de(salvo);
     }
 
+    /**
+     * Altera um evento.
+     *
+     * <p>Os dados de apresentacao mudam sempre; a planta da casa, so enquanto o evento e
+     * rascunho. Publicado, ele pode ter reservas, e o booking-service ja copiou a capacidade
+     * para o lado dele — mexer nos setores aqui mudaria a casa por baixo de quem ja comprou.
+     *
+     * <p>O layout enviado e comparado com o atual, e a recusa so acontece se ele de fato mudou.
+     * Sem essa comparacao, editar apenas a descricao de um evento publicado seria recusado: o
+     * mesmo record carrega os dois assuntos, e a tela reenvia os setores inalterados junto.
+     */
     @Transactional
     public EventDetailResponse alterar(UUID id, EventRequest requisicao) {
         Event evento = carregarAlteravel(id);
+
+        List<LayoutDeSetor> novoLayout = layoutDe(requisicao);
+        if (!mesmoLayout(novoLayout, layoutAtualDe(evento))) {
+            if (!evento.podeAlterarLayout()) {
+                throw new LayoutNaoAlteravelException(id);
+            }
+            evento.aplicarLayout(novoLayout);
+        }
 
         evento.alterarDados(
                 requisicao.name(),
                 requisicao.description(),
                 requisicao.venue(),
                 requisicao.eventDate(),
-                requisicao.totalTickets(),
-                requisicao.price(),
                 requisicao.imageUrl());
 
         log.info("evento alterado: id={}", id);
@@ -156,6 +175,50 @@ public class EventService {
     }
 
     // ---------- apoio ----------
+
+    private static List<LayoutDeSetor> layoutDe(EventRequest requisicao) {
+        return requisicao.sectors().stream()
+                .map(setor -> new LayoutDeSetor(
+                        setor.name(), setor.price(), setor.rowsCount(), setor.seatsPerRow()))
+                .toList();
+    }
+
+    private static List<LayoutDeSetor> layoutAtualDe(Event evento) {
+        return evento.getSectors().stream()
+                .map(setor -> new LayoutDeSetor(
+                        setor.getName(), setor.getPrice(), setor.getRowsCount(),
+                        setor.getSeatsPerRow()))
+                .toList();
+    }
+
+    /**
+     * Compara dois layouts campo a campo.
+     *
+     * <p>Nao usa o {@code equals} do record, e a razao e o preco: {@code BigDecimal.equals} leva
+     * a escala em conta, entao {@code 180.00} vindo do banco e {@code 180.0} vindo do JSON seriam
+     * "diferentes". Um admin que editasse apenas a descricao de um evento publicado levaria um
+     * {@code 409} por um layout que ninguem mudou — e o mesmo record carrega os dois assuntos,
+     * entao a tela reenvia os setores junto de qualquer edicao. {@code compareTo} compara valor.
+     */
+    private static boolean mesmoLayout(List<LayoutDeSetor> novo, List<LayoutDeSetor> atual) {
+        if (novo.size() != atual.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < novo.size(); i++) {
+            LayoutDeSetor a = novo.get(i);
+            LayoutDeSetor b = atual.get(i);
+
+            if (!a.name().equals(b.name())
+                    || a.rowsCount() != b.rowsCount()
+                    || a.seatsPerRow() != b.seatsPerRow()
+                    || a.price().compareTo(b.price()) != 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private Event carregar(UUID id) {
         return eventRepository.findById(id).orElseThrow(() -> new EventNotFoundException(id));

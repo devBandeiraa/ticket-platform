@@ -5,11 +5,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.LayoutDeSetor;
 import com.devbandeiraa.eventservice.repository.EventRepository;
 import com.devbandeiraa.eventservice.support.PostgresContainerConfig;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -195,10 +197,11 @@ class CatalogoPublicoIntegrationTest {
                 "Descricao de " + nome,
                 "Estadio Municipal",
                 Instant.now().plus(diasAteOEvento, ChronoUnit.DAYS),
-                500,
-                new BigDecimal("150.00"),
                 // Sem capa: o catalogo precisa funcionar para o evento que ainda nao tem arte.
                 null,
-                UUID.randomUUID());
+                UUID.randomUUID(),
+                // 25 filas de 20 lugares = 500, a mesma capacidade que estes testes usavam
+                // quando ela era um inteiro solto.
+                List.of(new LayoutDeSetor("Plateia", new BigDecimal("150.00"), 25, 20)));
     }
 }
