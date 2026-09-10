@@ -13,13 +13,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.devbandeiraa.bookingservice.client.EventClient;
-import com.devbandeiraa.bookingservice.client.EventSnapshot;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.exception.EventServiceIndisponivelException;
 import com.devbandeiraa.bookingservice.exception.EventoNaoDisponivelException;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
+import com.devbandeiraa.bookingservice.support.AssentosDeTeste;
+import com.devbandeiraa.bookingservice.support.PlantaDeTeste;
 import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -58,7 +60,10 @@ class ReservaIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private EventInventoryRepository estoqueRepository;
+    private EventSeatRepository assentoRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
 
     @MockitoBean
     private EventClient eventClient;
@@ -70,7 +75,8 @@ class ReservaIntegrationTest {
     @BeforeEach
     void limparEstado() {
         bookingRepository.deleteAllInBatch();
-        estoqueRepository.deleteAllInBatch();
+        bookingSeatRepository.deleteAllInBatch();
+        assentoRepository.deleteAllInBatch();
 
         eventoId = UUID.randomUUID();
         usuarioId = UUID.randomUUID();
@@ -92,20 +98,27 @@ class ReservaIntegrationTest {
                 .andExpect(jsonPath("$.userId").value(usuarioId.toString()))
                 .andExpect(jsonPath("$.expiresAt").exists());
 
-        assertThat(estoqueRepository.findById(eventoId).orElseThrow().getReservedTickets())
+        assertThat(AssentosDeTeste.ocupados(assentoRepository, eventoId))
                 .isEqualTo(2);
     }
 
     @Test
-    @DisplayName("o preco gravado e o do estoque, e nao um valor vindo do cliente")
+    @DisplayName("o preco gravado e o do lugar, e nao um valor vindo do cliente")
     void deveGravarSnapshotDoPreco() throws Exception {
         eventoComCapacidade(10);
 
         mockMvc.perform(reservar(3, "chave-preco", tokenDoUsuario))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.unitPrice").value(150.00))
-                // Total calculado no servidor a partir do unitario: um total vindo pronto
-                // poderia discordar da multiplicacao.
+                // Um preco por lugar, congelado no ato da compra. Nao ha mais preco unitario da
+                // reserva: uma reserva de setores diferentes nao tem um, e a media seria um
+                // valor que nenhum ingresso custou.
+                .andExpect(jsonPath("$.seats.length()").value(3))
+                .andExpect(jsonPath("$.seats[0].price").value(150.00))
+                .andExpect(jsonPath("$.seats[2].price").value(150.00))
+                // Cada lugar vem identificado, e nao apenas contado.
+                .andExpect(jsonPath("$.seats[0].label").value("Plateia A1"))
+                // Total somado no servidor a partir dos lugares efetivamente tomados: um total
+                // vindo pronto do cliente poderia discordar da soma.
                 .andExpect(jsonPath("$.totalPrice").value(450.00));
     }
 
@@ -140,7 +153,7 @@ class ReservaIntegrationTest {
 
         assertThat(segundaResposta).isEqualTo(primeiraResposta);
         assertThat(bookingRepository.count()).isEqualTo(1);
-        assertThat(estoqueRepository.findById(eventoId).orElseThrow().getReservedTickets())
+        assertThat(AssentosDeTeste.ocupados(assentoRepository, eventoId))
                 .isEqualTo(2);
     }
 
@@ -189,7 +202,7 @@ class ReservaIntegrationTest {
                 .andExpect(jsonPath("$.error").value("SOLD_OUT"));
 
         // Nada foi reservado: o UPDATE condicional nao afetou linha nenhuma.
-        assertThat(estoqueRepository.findById(eventoId).orElseThrow().getReservedTickets()).isZero();
+        assertThat(AssentosDeTeste.ocupados(assentoRepository, eventoId)).isZero();
         assertThat(bookingRepository.count()).isZero();
     }
 
@@ -306,7 +319,7 @@ class ReservaIntegrationTest {
 
     private void eventoComCapacidade(int capacidade) {
         when(eventClient.buscarPublicado(eventoId))
-                .thenReturn(new EventSnapshot(eventoId, capacidade, PRECO));
+                .thenReturn(PlantaDeTeste.eventoCom(eventoId, capacidade, PRECO));
     }
 
     private org.springframework.test.web.servlet.RequestBuilder reservar(

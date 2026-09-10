@@ -34,6 +34,24 @@ public class GlobalExceptionHandler extends ApiExceptionHandlerSupport {
     }
 
     /**
+     * Os lugares escolhidos ja nao estavam livres.
+     *
+     * <p>Codigo proprio, e nao {@code SOLD_OUT}: "esgotado" diz que nao adianta tentar de novo,
+     * enquanto aqui escolher outros lugares resolve. A tela precisa dar conselhos diferentes, e
+     * com um codigo unico ela erraria em metade das vezes.
+     */
+    @ExceptionHandler(AssentosIndisponiveisException.class)
+    public ResponseEntity<ApiError> tratarAssentosIndisponiveis(
+            AssentosIndisponiveisException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.info("[{}] {}", traceId, excecao.getMessage());
+
+        return responder(HttpStatus.CONFLICT, "SEATS_TAKEN",
+                excecao.getMessage(), requisicao, traceId);
+    }
+
+    /**
      * Evento sob disputa intensa: nao se conseguiu a vez dentro das tentativas.
      *
      * <p>{@code 409} e nao {@code 503} porque o servico esta saudavel — o que faltou foi a vez

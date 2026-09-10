@@ -79,6 +79,22 @@ function LinhaDeReserva({ reserva, aoMudar }: { reserva: Reserva; aoMudar: () =>
             </span>
           </div>
 
+          {/* Os lugares vem vazios nas reservas anteriores a Fase 17, feitas quando o sistema
+              contava ingressos sem saber quais eram. A tela simplesmente nao mostra a linha. */}
+          {reserva.seats.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {reserva.seats.map((assento) => (
+                <li
+                  key={assento.seatId}
+                  className="rounded border border-borda bg-superficie/60 px-2 py-0.5 text-xs text-suave"
+                  title={dinheiro(assento.price)}
+                >
+                  {assento.label}
+                </li>
+              ))}
+            </ul>
+          )}
+
           <Link
             to={`/eventos/${reserva.eventId}`}
             className="mt-2 block text-sm text-marca hover:underline"

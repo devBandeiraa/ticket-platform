@@ -59,9 +59,16 @@ public class BookingController {
      * <p>Devolve {@code 201} na criacao e {@code 200} quando a mesma chave e reapresentada.
      */
     @Operation(summary = "Cria uma reserva",
-            description = "A reserva nasce PENDING e segura o ingresso ate `expiresAt`. "
-                    + "Passado o prazo sem pagamento, ela expira sozinha e o ingresso volta "
-                    + "ao estoque.\n\n"
+            description = "A reserva nasce PENDING e segura os lugares ate `expiresAt`. "
+                    + "Passado o prazo sem pagamento, ela expira sozinha e os lugares voltam "
+                    + "a ficar livres.\n\n"
+                    + "**Duas formas de escolher.** Com `seatIds`, o cliente diz exatamente "
+                    + "quais lugares quer, e o pedido e tudo ou nada: se um deles tiver saido "
+                    + "no meio do caminho, nada e reservado. Sem `seatIds`, `quantity` pede os "
+                    + "N livres mais baratos — o \"melhor disponivel\".\n\n"
+                    + "As duas convergem no mesmo `UPDATE` condicional que impede vender o "
+                    + "mesmo lugar duas vezes: sao dois modos de escolher, e nao duas logicas "
+                    + "de correcao.\n\n"
                     + "Repetir a chamada com o mesmo `Idempotency-Key` devolve **200** com a "
                     + "reserva ja criada, em vez de **201** com uma segunda. E o que torna "
                     + "seguro repetir um pedido que estourou por timeout sem se saber se "
@@ -74,9 +81,14 @@ public class BookingController {
                     description = "INVALID_IDEMPOTENCY_KEY ou VALIDATION_ERROR",
                     content = @Content),
             @ApiResponse(responseCode = "409",
-                    description = "`SOLD_OUT` — nao ha ingressos suficientes. **Resposta "
-                            + "definitiva:** e o que recebe quem perdeu a corrida pelo ultimo "
-                            + "ingresso, e repetir nao muda o resultado.\n\n"
+                    description = "`SEATS_TAKEN` — um ou mais dos lugares **escolhidos** ja "
+                            + "nao estavam livres. Escolher outros resolve, e a mensagem diz "
+                            + "quais eram os disputados.\n\n"
+                            + "`SOLD_OUT` — nao ha lugares livres suficientes no evento "
+                            + "inteiro. **Resposta definitiva:** e o que recebe quem perdeu a "
+                            + "corrida pelo ultimo ingresso, e repetir nao muda o resultado.\n\n"
+                            + "Os dois sao distintos de proposito: um diz \"tente outro "
+                            + "lugar\", o outro diz \"acabou\".\n\n"
                             + "`LOCK_TIMEOUT` — havia disputa demais neste evento e a vez nao "
                             + "chegou a tempo. Esta, sim, pode ser repetida.",
                     content = @Content),

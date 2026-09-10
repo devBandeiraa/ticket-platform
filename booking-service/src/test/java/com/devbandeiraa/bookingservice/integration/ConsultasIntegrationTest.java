@@ -6,13 +6,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.devbandeiraa.bookingservice.client.EventClient;
-import com.devbandeiraa.bookingservice.client.EventSnapshot;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
-import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
+import com.devbandeiraa.bookingservice.support.AssentosDeTeste;
+import com.devbandeiraa.bookingservice.support.PlantaDeTeste;
 import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -47,7 +48,10 @@ class ConsultasIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private EventInventoryRepository estoqueRepository;
+    private EventSeatRepository assentoRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
 
     @Autowired
     private TransactionTemplate transacao;
@@ -60,7 +64,8 @@ class ConsultasIntegrationTest {
     @BeforeEach
     void limparEstado() {
         bookingRepository.deleteAllInBatch();
-        estoqueRepository.deleteAllInBatch();
+        bookingSeatRepository.deleteAllInBatch();
+        assentoRepository.deleteAllInBatch();
         eventoId = UUID.randomUUID();
     }
 
@@ -85,7 +90,7 @@ class ConsultasIntegrationTest {
     @DisplayName("evento nunca visto e hidratado na primeira consulta de disponibilidade")
     void deveHidratarNaPrimeiraConsulta() throws Exception {
         when(eventClient.buscarPublicado(eventoId))
-                .thenReturn(new EventSnapshot(eventoId, 42, PRECO));
+                .thenReturn(PlantaDeTeste.eventoCom(eventoId, 42, PRECO));
 
         mockMvc.perform(get("/events/" + eventoId + "/availability"))
                 .andExpect(status().isOk())
@@ -172,15 +177,23 @@ class ConsultasIntegrationTest {
     // ---------- apoio ----------
 
     private void estoqueHidratado(int capacidade) {
-        estoqueRepository.saveAndFlush(EventInventory.hidratado(eventoId, capacidade, PRECO));
+        AssentosDeTeste.criarCasa(assentoRepository, eventoId, capacidade, PRECO);
     }
 
     private Booking reservaPendente(int quantidade) {
         return transacao.execute(status -> {
-            estoqueRepository.reservar(eventoId, quantidade);
-            return bookingRepository.saveAndFlush(Booking.pendente(
-                    eventoId, UUID.randomUUID(), quantidade, PRECO,
+            Booking reserva = bookingRepository.saveAndFlush(Booking.pendente(
+                    eventoId, UUID.randomUUID(), quantidade, totalDe(quantidade),
                     Instant.now().plus(10, ChronoUnit.MINUTES), "chave-" + UUID.randomUUID()));
+
+            AssentosDeTeste.ocuparPara(assentoRepository, eventoId, quantidade, reserva.getId());
+            return reserva;
         });
     }
+
+    /** O total da reserva e a soma dos lugares — nao mais preco unitario vezes quantidade. */
+    private static BigDecimal totalDe(int quantidade) {
+        return PRECO.multiply(BigDecimal.valueOf(quantidade));
+    }
+
 }

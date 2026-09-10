@@ -118,6 +118,11 @@ class DocumentacaoOpenApiIntegrationTest {
         mockMvc.perform(get(CAMINHO))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/bookings'].post.responses['409'].description")
-                        .value(org.hamcrest.Matchers.containsString("SOLD_OUT")));
+                        .value(org.hamcrest.Matchers.containsString("SOLD_OUT")))
+                // SEATS_TAKEN e SOLD_OUT dizem coisas opostas a quem esta na tela — "tente
+                // outro lugar" contra "acabou". Documentar so um deixaria o cliente sem saber
+                // que precisa distinguir, e o conselho sairia errado em metade das vezes.
+                .andExpect(jsonPath("$.paths['/bookings'].post.responses['409'].description")
+                        .value(org.hamcrest.Matchers.containsString("SEATS_TAKEN")));
     }
 }

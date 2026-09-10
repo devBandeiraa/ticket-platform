@@ -107,13 +107,45 @@ export interface Disponibilidade {
   available: number
 }
 
+/** Um lugar de uma reserva. `label` vem pronto do servidor: "Plateia A12". */
+export interface AssentoDaReserva {
+  seatId: string
+  sector: string
+  row: string
+  number: number
+  label: string
+  price: number
+}
+
+/** Estado de um lugar no mapa. RESERVED pode voltar a ficar livre; SOLD, nao. */
+export type StatusDoAssento = 'FREE' | 'RESERVED' | 'SOLD'
+
+/** Um lugar no mapa do evento, com o estado que o booking-service conhece. */
+export interface AssentoDoMapa extends AssentoDaReserva {
+  status: StatusDoAssento
+}
+
+export interface MapaDeAssentos {
+  eventId: string
+  seats: AssentoDoMapa[]
+}
+
 export interface Reserva {
   id: string
   eventId: string
   userId: string
   quantity: number
-  unitPrice: number
   totalPrice: number
+  /**
+   * Os lugares da reserva, cada um com o que custou no ato da compra.
+   *
+   * Substitui o antigo `unitPrice`: uma reserva de Plateia a 180 e Galeria a 70 nao tem preco
+   * unitario, e a media seria um valor que nenhum ingresso custou.
+   *
+   * Vem vazia nas reservas anteriores a Fase 17, feitas quando o sistema contava ingressos sem
+   * saber quais eram.
+   */
+  seats: AssentoDaReserva[]
   status: StatusDaReserva
   expiresAt: string | null
   paidAt: string | null
