@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.devbandeiraa.bookingservice.client.EventClient;
 import com.devbandeiraa.bookingservice.client.EventSnapshot;
+import com.devbandeiraa.bookingservice.client.SectorSnapshot;
 import com.devbandeiraa.bookingservice.exception.EventServiceIndisponivelException;
 import com.devbandeiraa.bookingservice.exception.EventoNaoDisponivelException;
 import java.math.BigDecimal;
@@ -44,8 +45,8 @@ class EventClientTest {
     }
 
     @Test
-    @DisplayName("le capacidade e preco do evento publicado")
-    void deveLerCapacidadeEPreco() {
+    @DisplayName("le a planta da casa: setores, filas e lugares por fila")
+    void deveLerAPlantaDaCasa() {
         UUID eventoId = UUID.randomUUID();
         servidorSimulado.expect(requestTo(BASE + "/events/" + eventoId))
                 .andExpect(method(HttpMethod.GET))
@@ -54,17 +55,33 @@ class EventClientTest {
                           "id": "%s",
                           "name": "Show de Rock",
                           "venue": "Estadio Municipal",
-                          "totalTickets": 500,
+                          "totalTickets": 20,
                           "price": 150.00,
-                          "status": "PUBLISHED"
+                          "status": "PUBLISHED",
+                          "sectors": [
+                            {
+                              "id": "8f1a0e2c-0000-4000-8000-000000000001",
+                              "name": "Plateia",
+                              "price": 150.00,
+                              "rowsCount": 2,
+                              "seatsPerRow": 10,
+                              "rowLabels": ["A", "B"],
+                              "capacity": 20
+                            }
+                          ]
                         }
                         """.formatted(eventoId), MediaType.APPLICATION_JSON));
 
         EventSnapshot evento = eventClient.buscarPublicado(eventoId);
 
         assertThat(evento.id()).isEqualTo(eventoId);
-        assertThat(evento.totalTickets()).isEqualTo(500);
-        assertThat(evento.price()).isEqualByComparingTo(new BigDecimal("150.00"));
+        assertThat(evento.sectors()).hasSize(1);
+
+        SectorSnapshot plateia = evento.sectors().get(0);
+        assertThat(plateia.name()).isEqualTo("Plateia");
+        assertThat(plateia.rowLabels()).containsExactly("A", "B");
+        assertThat(plateia.seatsPerRow()).isEqualTo(10);
+        assertThat(plateia.price()).isEqualByComparingTo(new BigDecimal("150.00"));
         servidorSimulado.verify();
     }
 
@@ -76,6 +93,15 @@ class EventClientTest {
                 .andRespond(withSuccess("""
                         {
                           "id": "%s",
+                          "sectors": [
+                            {
+                              "name": "Plateia",
+                              "price": 50.00,
+                              "rowLabels": ["A"],
+                              "seatsPerRow": 10,
+                              "capacity": 10
+                            }
+                          ],
                           "totalTickets": 10,
                           "price": 50.00,
                           "campoQueAindaNaoExiste": "valor futuro"
@@ -83,7 +109,7 @@ class EventClientTest {
                         """.formatted(eventoId), MediaType.APPLICATION_JSON));
 
         // O event-service pode acrescentar campos sem quebrar este cliente.
-        assertThat(eventClient.buscarPublicado(eventoId).totalTickets()).isEqualTo(10);
+        assertThat(eventClient.buscarPublicado(eventoId).sectors()).hasSize(1);
     }
 
     @Test

@@ -18,7 +18,7 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white)](#observabilidade)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
-[![Testes](https://img.shields.io/badge/testes-303-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-308-success?style=flat-square)](#testes)
 
 </div>
 
@@ -197,30 +197,39 @@ restam é quem os vende.
 **Não é no lock distribuído.** O lock existe, no Redis, e reduz contenção — mas é *otimização*.
 Se ele expirar no meio da transação, ou se o Redis cair inteiro, a correção não se perde.
 
-Ela mora no PostgreSQL, num `UPDATE` condicional protegido por uma `CHECK constraint`:
+Ela mora no PostgreSQL, num `UPDATE` condicional:
 
 ```java
 @Modifying(clearAutomatically = true, flushAutomatically = true)
 @Query("""
-        UPDATE EventInventory estoque
-           SET estoque.reservedTickets = estoque.reservedTickets + :quantidade
-         WHERE estoque.eventId = :eventId
-           AND estoque.reservedTickets + :quantidade <= estoque.totalTickets
+        UPDATE EventSeat assento
+           SET assento.status = :reservado,
+               assento.bookingId = :bookingId
+         WHERE assento.id IN :assentos
+           AND assento.eventId = :eventId
+           AND assento.status = :livre
         """)
-int reservar(@Param("eventId") UUID eventId, @Param("quantidade") int quantidade);
+int reservar(...);
 ```
+
+O chamador compara as linhas afetadas com quantos lugares pediu. Menos significa que alguém
+levou pelo menos um deles no meio do caminho, e a transação inteira desfaz — não existe reserva
+pela metade. **Não há janela entre verificar e gravar, porque as duas coisas são a mesma
+operação.**
+
+**A rede embaixo mudou de natureza.** No desenho por quantidade era preciso escrever uma
+`CHECK (reserved <= total)`, porque nada na estrutura impedia o contador de passar do teto.
+Com uma linha por lugar não há o que escrever: existe exatamente uma linha para "Plateia A12",
+e ela só sai de `FREE` uma vez. Vender o mesmo assento duas vezes exigiria duas linhas para o
+mesmo assento — e a unicidade da chave natural não permite. A garantia deixou de ser uma regra
+declarada e passou a ser estrutural.
 
 ```sql
-CONSTRAINT ck_event_inventory_reserved
-    CHECK (reserved_tickets >= 0 AND reserved_tickets <= total_tickets)
+CONSTRAINT uk_event_seats_lugar UNIQUE (event_id, sector_name, row_label, seat_number)
 ```
 
-Zero linhas afetadas significa que os ingressos acabaram entre a consulta e a escrita — e o
-serviço responde `409 SOLD_OUT`. **Não há janela entre verificar e gravar, porque as duas coisas
-são a mesma operação.** A constraint é a rede embaixo: mesmo que alguém escreva outro caminho de
-escrita amanhã, o banco recusa.
-
-É esse desenho que a tela acima exercita, e que um teste de 200 threads verifica a cada build.
+É esse desenho que a tela acima exercita, e que um teste de 200 threads verifica a cada build —
+inclusive no caso mais duro, em que as 200 pedem **o mesmo lugar**.
 
 ---
 
@@ -238,6 +247,10 @@ inserido gravava um `UPDATE` que **zerava `reserved_tickets`**, apagando reserva
 
 A correção foi implementar `Persistable<UUID>`, forçando `persist` — e, com ele, uma violação de
 chave primária honesta em vez de uma sobrescrita silenciosa.
+
+`EventInventory` não existe mais: a reserva passou a ser por assento, e o contador saiu junto com
+o desenho que o sustentava. A lição sobreviveu à classe — `save()` com id atribuído continua sendo
+`merge`, e é o tipo de armadilha que só aparece sob concorrência.
 
 Fica registrado aqui de propósito. O ponto do projeto não é ter acertado de primeira: é ter um
 teste que **não deixa passar**.
@@ -459,7 +472,7 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 | Pergunta | Arquivo |
 |---|---|
-| Como o overselling é impedido? | [`EventInventoryRepository.java`](booking-service/src/main/java/com/devbandeiraa/bookingservice/repository/EventInventoryRepository.java) · [`V1__cria_tabelas_de_reserva.sql`](booking-service/src/main/resources/db/migration/V1__cria_tabelas_de_reserva.sql) |
+| Como o overselling é impedido? | [`EventSeatRepository.java`](booking-service/src/main/java/com/devbandeiraa/bookingservice/repository/EventSeatRepository.java) · [`V6__reserva_por_assento.sql`](booking-service/src/main/resources/db/migration/V6__reserva_por_assento.sql) |
 | E o lock distribuído? | [`RedisDistributedLock.java`](booking-service/src/main/java/com/devbandeiraa/bookingservice/lock/RedisDistributedLock.java) |
 | Como a reserva é orquestrada? | [`BookingService.java`](booking-service/src/main/java/com/devbandeiraa/bookingservice/service/BookingService.java) |
 | Como o evento não se perde? | [`OutboxPublisher.java`](booking-service/src/main/java/com/devbandeiraa/bookingservice/messaging/OutboxPublisher.java) |
@@ -475,7 +488,7 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**303 no total** — 280 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**308 no total** — 285 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 23 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -483,6 +496,9 @@ banco em memória não o reproduz.
 |---|---|
 | `OversellingConcorrenteIntegrationTest` | 200 threads, 50 ingressos, exatamente 50 vendidos |
 | `OversellingSemLockIntegrationTest` | O mesmo **com o lock desligado** — a garantia é do banco |
+| `doisNaoPodemLevarOMesmoLugar` | 200 threads pedindo **o mesmo assento**: exatamente uma leva |
+| `naoDeveEntregarReservaParcial` | Conjuntos de lugares sobrepostos, em paralelo — ninguém fica com metade do que pediu |
+| `AssentoConstraintIntegrationTest` | Um lugar, uma linha: nem um `INSERT` direto duplica o assento |
 | `OutboxIntegrationTest` | O evento sobrevive à falha do publicador |
 | `ConsumoDeConfirmacaoIntegrationTest` | Duplicata descartada, retry vence falha transitória, DLQ recebe a permanente |
 | `RateLimitIntegrationTest` | Os dois baldes são independentes, e o `429` sai no formato de erro da API |
@@ -589,9 +605,9 @@ código de negócio, e atualizado a cada fase:
 - Modelo de dados, tabela por tabela, com a razão de cada constraint
 - Contratos de API e a tabela de rotas do gateway
 - O fluxo da reserva passo a passo, do clique ao commit
-- **54 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
+- **62 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
   depois, ao subir em Kubernetes ou ao olhar o painel durante uma queda de verdade
-- **65 decisões registradas**, cada uma com a justificativa e a alternativa recusada
+- **75 decisões registradas**, cada uma com a justificativa e a alternativa recusada
 
 Cada uma das catorze fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
 assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)

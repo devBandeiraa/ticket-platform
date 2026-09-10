@@ -1,6 +1,7 @@
 package com.devbandeiraa.bookingservice.controller;
 
 import com.devbandeiraa.bookingservice.dto.response.AvailabilityResponse;
+import com.devbandeiraa.bookingservice.dto.response.SeatMapResponse;
 import com.devbandeiraa.bookingservice.service.EstoqueService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -49,7 +50,21 @@ public class AvailabilityController {
                     content = @Content)})
     @GetMapping("/events/{eventId}/availability")
     public ResponseEntity<AvailabilityResponse> consultar(@PathVariable UUID eventId) {
-        return ResponseEntity.ok(
-                AvailabilityResponse.de(estoqueService.garantirHidratado(eventId)));
+        return ResponseEntity.ok(AvailabilityResponse.de(estoqueService.consultar(eventId)));
+    }
+
+    @Operation(summary = "Devolve o mapa de lugares do evento",
+            description = "Nao exige token: escolher o lugar faz parte de decidir a compra, e "
+                    + "exigir conta antes disso esconderia justamente o que convence. O estado "
+                    + "de cada assento e um retrato do instante — quem decide a disputa e o "
+                    + "`UPDATE` condicional, na hora de reservar.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "mapa do evento"),
+            @ApiResponse(responseCode = "404",
+                    description = "EVENT_NOT_AVAILABLE: nao existe ou nao esta publicado",
+                    content = @Content)})
+    @GetMapping("/events/{eventId}/seats")
+    public ResponseEntity<SeatMapResponse> mapa(@PathVariable UUID eventId) {
+        return ResponseEntity.ok(SeatMapResponse.de(eventId, estoqueService.mapaDe(eventId)));
     }
 }

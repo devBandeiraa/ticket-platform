@@ -7,6 +7,8 @@ import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.messaging.BookingConfirmedEvent;
 import com.devbandeiraa.bookingservice.messaging.OutboxRegistrar;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -36,11 +38,17 @@ public class ConfirmacaoTransacional {
     private static final Logger log = LoggerFactory.getLogger(ConfirmacaoTransacional.class);
 
     private final BookingRepository bookingRepository;
+    private final BookingSeatRepository bookingSeatRepository;
+    private final EventSeatRepository assentoRepository;
     private final OutboxRegistrar outboxRegistrar;
 
     public ConfirmacaoTransacional(BookingRepository bookingRepository,
+                                   BookingSeatRepository bookingSeatRepository,
+                                   EventSeatRepository assentoRepository,
                                    OutboxRegistrar outboxRegistrar) {
         this.bookingRepository = bookingRepository;
+        this.bookingSeatRepository = bookingSeatRepository;
+        this.assentoRepository = assentoRepository;
         this.outboxRegistrar = outboxRegistrar;
     }
 
@@ -65,6 +73,12 @@ public class ConfirmacaoTransacional {
             return Optional.empty();
         }
 
+        // Os lugares passam de RESERVED a SOLD na mesma transacao que confirma a reserva. Em
+        // transacoes separadas, uma falha entre as duas deixaria uma reserva paga com lugares
+        // que o job de expiracao ainda consideraria liberaveis — e o assento vendido voltaria
+        // a ficar a venda.
+        assentoRepository.vender(id);
+
         Booking confirmada = bookingRepository.findById(id)
                 .orElseThrow(() -> new ReservaNaoEncontradaException(id));
 
@@ -75,6 +89,7 @@ public class ConfirmacaoTransacional {
         outboxRegistrar.registrarConfirmacao(BookingConfirmedEvent.de(confirmada));
 
         log.info("reserva paga: id={} comprovante={}", id, autorizacao.authorizationCode());
-        return Optional.of(BookingResponse.de(confirmada));
+        return Optional.of(BookingResponse.de(confirmada,
+                bookingSeatRepository.findByIdBookingIdOrderBySectorNameAscRowLabelAscSeatNumberAsc(id)));
     }
 }

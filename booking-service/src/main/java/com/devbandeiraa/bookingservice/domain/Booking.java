@@ -49,9 +49,6 @@ public class Booking {
     @Column(nullable = false, updatable = false)
     private int quantity;
 
-    @Column(name = "unit_price", nullable = false, updatable = false, precision = 10, scale = 2)
-    private BigDecimal unitPrice;
-
     @Column(name = "total_price", nullable = false, updatable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
@@ -87,13 +84,12 @@ public class Booking {
     protected Booking() {
     }
 
-    private Booking(UUID eventId, UUID userId, int quantity, BigDecimal unitPrice,
+    private Booking(UUID eventId, UUID userId, int quantity, BigDecimal totalPrice,
                     Instant expiresAt, String idempotencyKey) {
         this.eventId = eventId;
         this.userId = userId;
         this.quantity = quantity;
-        this.unitPrice = unitPrice;
-        this.totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        this.totalPrice = totalPrice;
         // Truncado para microssegundos, que e a precisao de TIMESTAMPTZ no PostgreSQL. Sem isso
         // o objeto em memoria carrega nanossegundos que o banco arredonda ao gravar, e a reserva
         // devolvida no 201 sai diferente da mesma reserva lida logo depois — mesmo id, mesmo
@@ -105,15 +101,20 @@ public class Booking {
     }
 
     /**
-     * Cria a reserva ja segurando o estoque, com prazo para pagar.
+     * Cria a reserva ja segurando os lugares, com prazo para pagar.
      *
-     * <p>O total e calculado aqui a partir do preco unitario, e nao recebido pronto: um total
-     * vindo de fora poderia discordar de {@code unitPrice * quantity} — por erro de
-     * arredondamento no cliente ou por adulteracao — e o banco aceitaria a incoerencia.
+     * <p>Nao ha mais preco unitario. Uma reserva de Plateia a 180 e Galeria a 70 nao tem um: a
+     * media seria 125, valor que nenhum ingresso custou. O total vem somado dos lugares
+     * efetivamente tomados, e o preco de cada um fica em {@code booking_seats} — que e mais
+     * informacao do que o campo removido dava, e nunca uma media inventada.
+     *
+     * <p>O total e calculado pelo servidor a partir dos assentos, e nunca recebido do cliente:
+     * um valor vindo de fora poderia discordar da soma dos lugares, por erro de arredondamento
+     * ou por adulteracao, e o banco aceitaria a incoerencia.
      */
-    public static Booking pendente(UUID eventId, UUID userId, int quantity, BigDecimal unitPrice,
+    public static Booking pendente(UUID eventId, UUID userId, int quantity, BigDecimal totalPrice,
                                    Instant expiresAt, String idempotencyKey) {
-        return new Booking(eventId, userId, quantity, unitPrice, expiresAt, idempotencyKey);
+        return new Booking(eventId, userId, quantity, totalPrice, expiresAt, idempotencyKey);
     }
 
     public boolean estaPendente() {
@@ -139,10 +140,6 @@ public class Booking {
 
     public int getQuantity() {
         return quantity;
-    }
-
-    public BigDecimal getUnitPrice() {
-        return unitPrice;
     }
 
     public BigDecimal getTotalPrice() {
