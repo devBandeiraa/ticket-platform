@@ -197,6 +197,8 @@ class CatalogoPublicoIntegrationTest {
                 Instant.now().plus(diasAteOEvento, ChronoUnit.DAYS),
                 500,
                 new BigDecimal("150.00"),
+                // Sem capa: o catalogo precisa funcionar para o evento que ainda nao tem arte.
+                null,
                 UUID.randomUUID());
     }
 }

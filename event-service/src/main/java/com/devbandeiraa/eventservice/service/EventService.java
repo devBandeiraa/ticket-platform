@@ -98,6 +98,7 @@ public class EventService {
                 requisicao.eventDate(),
                 requisicao.totalTickets(),
                 requisicao.price(),
+                requisicao.imageUrl(),
                 adminId);
 
         Event salvo = eventRepository.save(evento);
@@ -116,7 +117,8 @@ public class EventService {
                 requisicao.venue(),
                 requisicao.eventDate(),
                 requisicao.totalTickets(),
-                requisicao.price());
+                requisicao.price(),
+                requisicao.imageUrl());
 
         log.info("evento alterado: id={}", id);
         return EventDetailResponse.de(evento);

@@ -48,6 +48,15 @@ public class Event {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
+    /**
+     * Capa do evento, exibida no catalogo. Nula quando o evento ainda nao tem arte.
+     *
+     * <p>Guarda a URL, e nao o binario: servir imagem e trabalho de CDN. Ver a nota na
+     * migration {@code V2}.
+     */
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private EventStatus status;
@@ -68,13 +77,14 @@ public class Event {
     }
 
     private Event(String name, String description, String venue, Instant eventDate,
-                  int totalTickets, BigDecimal price, UUID createdBy) {
+                  int totalTickets, BigDecimal price, String imageUrl, UUID createdBy) {
         this.name = name;
         this.description = description;
         this.venue = venue;
         this.eventDate = eventDate;
         this.totalTickets = totalTickets;
         this.price = price;
+        this.imageUrl = imageUrl;
         this.createdBy = createdBy;
         this.status = EventStatus.DRAFT;
     }
@@ -87,8 +97,10 @@ public class Event {
      * metade, e o tipo de erro que so se percebe quando alguem ja comprou.
      */
     public static Event rascunho(String name, String description, String venue, Instant eventDate,
-                                 int totalTickets, BigDecimal price, UUID createdBy) {
-        return new Event(name, description, venue, eventDate, totalTickets, price, createdBy);
+                                 int totalTickets, BigDecimal price, String imageUrl,
+                                 UUID createdBy) {
+        return new Event(name, description, venue, eventDate, totalTickets, price, imageUrl,
+                createdBy);
     }
 
     /** Um evento cancelado nao volta atras: seus dados ficam congelados. */
@@ -101,13 +113,14 @@ public class Event {
     }
 
     public void alterarDados(String name, String description, String venue, Instant eventDate,
-                             int totalTickets, BigDecimal price) {
+                             int totalTickets, BigDecimal price, String imageUrl) {
         this.name = name;
         this.description = description;
         this.venue = venue;
         this.eventDate = eventDate;
         this.totalTickets = totalTickets;
         this.price = price;
+        this.imageUrl = imageUrl;
     }
 
     public void publicar() {
@@ -144,6 +157,10 @@ public class Event {
 
     public BigDecimal getPrice() {
         return price;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
     }
 
     public EventStatus getStatus() {

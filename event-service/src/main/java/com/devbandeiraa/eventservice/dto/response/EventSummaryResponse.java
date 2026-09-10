@@ -10,6 +10,9 @@ import java.util.UUID;
  *
  * <p>Sem descricao de proposito: uma pagina de 20 eventos carregaria 20 textos longos que a tela
  * de listagem nao mostra. Quem abre o detalhe recebe o {@link EventDetailResponse} completo.
+ *
+ * <p>A capa segue o mesmo criterio e por isso entra: o cartao do catalogo a exibe. O corte e por
+ * o que a listagem desenha, e nao pelo tamanho do campo.
  */
 public record EventSummaryResponse(
         UUID id,
@@ -17,7 +20,8 @@ public record EventSummaryResponse(
         String venue,
         Instant eventDate,
         BigDecimal price,
-        int totalTickets) {
+        int totalTickets,
+        String imageUrl) {
 
     public static EventSummaryResponse de(Event evento) {
         return new EventSummaryResponse(
@@ -26,6 +30,7 @@ public record EventSummaryResponse(
                 evento.getVenue(),
                 evento.getEventDate(),
                 evento.getPrice(),
-                evento.getTotalTickets());
+                evento.getTotalTickets(),
+                evento.getImageUrl());
     }
 }

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -48,16 +49,29 @@ public record EventRequest(
         @NotNull(message = "O preco e obrigatorio")
         @PositiveOrZero(message = "O preco nao pode ser negativo")
         @Digits(integer = 8, fraction = 2, message = "O preco deve ter no maximo 8 inteiros e 2 decimais")
-        BigDecimal price) {
+        BigDecimal price,
+
+        @Size(max = 500, message = "A URL da capa deve ter no maximo 500 caracteres")
+        @Pattern(regexp = "^https?://.+", message = "A URL da capa deve comecar com http:// ou https://")
+        String imageUrl) {
 
     /** Apara espacos em volta antes da validacao, pelo mesmo motivo do cadastro de usuario. */
     public EventRequest {
         name = aparar(name);
         description = aparar(description);
         venue = aparar(venue);
+        // Campo opcional que o formulario envia como texto vazio quando o admin o limpa.
+        // Gravar "" faria o frontend tentar carregar uma imagem de endereco vazio, em vez de
+        // cair no fundo derivado do nome que ele desenha quando nao ha capa. Vazio e ausencia,
+        // e a coluna ja sabe representar ausencia.
+        imageUrl = vazioComoNulo(aparar(imageUrl));
     }
 
     private static String aparar(String valor) {
         return valor == null ? null : valor.trim();
+    }
+
+    private static String vazioComoNulo(String valor) {
+        return valor == null || valor.isEmpty() ? null : valor;
     }
 }

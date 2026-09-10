@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { alterarEvento, buscarParaAdmin, criarEvento } from '../../api/eventos'
 import { ErroDaApi } from '../../api/cliente'
 import type { EventoFormulario } from '../../api/tipos'
+import { Capa } from '../../componentes/Capa'
 import { Carregando, Erro, mensagemDe } from '../../componentes/Estados'
 import { Botao, Campo, Cartao, SeloDeEvento } from '../../componentes/Ui'
 import { deCampoLocal, paraCampoLocal } from '../../componentes/formato'
@@ -15,6 +16,7 @@ const VAZIO: EventoFormulario = {
   eventDate: '',
   totalTickets: 100,
   price: 0,
+  imageUrl: '',
 }
 
 /** Cria e edita. Os campos editaveis sao os mesmos nos dois casos, como no backend. */
@@ -41,6 +43,8 @@ export function FormularioDeEvento() {
       eventDate: paraCampoLocal(existente.data.eventDate),
       totalTickets: existente.data.totalTickets,
       price: existente.data.price,
+      // O input e controlado e nao aceita null; o backend devolve o vazio como null de volta.
+      imageUrl: existente.data.imageUrl ?? '',
     })
   }, [existente.data])
 
@@ -125,6 +129,31 @@ export function FormularioDeEvento() {
             onChange={(e) => alterar('eventDate', e.target.value)}
             erro={campos?.eventDate}
           />
+
+          <div>
+            <Campo
+              rotulo="Capa (URL)"
+              type="url"
+              maxLength={500}
+              placeholder="https://..."
+              value={dados.imageUrl ?? ''}
+              onChange={(e) => alterar('imageUrl', e.target.value)}
+              erro={campos?.imageUrl}
+            />
+            {/* Previa imediata: uma URL errada aparece aqui, e nao depois de publicar o evento. */}
+            {dados.imageUrl ? (
+              <Capa
+                nome={dados.name || 'Evento'}
+                url={dados.imageUrl}
+                prioridade
+                className="mt-2 aspect-[16/9] w-full rounded-md border border-borda"
+              />
+            ) : (
+              <p className="mt-1 text-xs text-suave">
+                Sem capa, o catalogo desenha um fundo a partir do nome do evento.
+              </p>
+            )}
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo

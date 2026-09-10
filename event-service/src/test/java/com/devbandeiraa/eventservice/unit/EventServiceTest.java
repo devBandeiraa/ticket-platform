@@ -157,7 +157,8 @@ class EventServiceTest {
                 "Estadio Municipal",
                 Instant.now().plus(30, ChronoUnit.DAYS),
                 500,
-                new BigDecimal("150.00"));
+                new BigDecimal("150.00"),
+                "https://cdn.exemplo.test/capas/show-de-rock.jpg");
     }
 
     private static Event eventoEmRascunho() {
@@ -168,6 +169,7 @@ class EventServiceTest {
                 Instant.now().plus(30, ChronoUnit.DAYS),
                 500,
                 new BigDecimal("150.00"),
+                "https://cdn.exemplo.test/capas/show-de-rock.jpg",
                 ID_DO_ADMIN);
     }
 }

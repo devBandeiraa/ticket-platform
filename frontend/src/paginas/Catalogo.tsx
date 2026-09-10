@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { listarPublicados } from '../api/eventos'
+import { Capa } from '../componentes/Capa'
 import { Erro, EsqueletoDeCartoes, Vazio } from '../componentes/Estados'
 import { Cartao, Paginacao } from '../componentes/Ui'
 import { dataEHora, dinheiro } from '../componentes/formato'
@@ -104,20 +105,26 @@ export function Catalogo() {
                 // Teto de seis para a ultima linha nao ficar esperando meio segundo.
                 style={{ animationDelay: `${Math.min(indice, 6) * 60}ms` }}
               >
-                <Cartao interativo className="flex h-full flex-col">
-                  <h3 className="font-medium transition-colors group-hover:text-marca">
-                    {evento.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-suave">{evento.venue}</p>
-                  <p className="mt-3 text-sm text-suave">{dataEHora(evento.eventDate)}</p>
+                <Cartao interativo semPreenchimento className="flex h-full flex-col overflow-hidden">
+                  {/* Proporcao fixa: o espaco da capa ja existe antes de a imagem chegar, entao
+                      a grade nao se reorganiza quando ela carrega. */}
+                  <Capa nome={evento.name} url={evento.imageUrl} className="aspect-[16/9] w-full" />
 
-                  <div className="mt-5 flex items-center justify-between border-t border-borda/60 pt-4">
-                    <span className="numerico text-lg font-semibold text-marca">
-                      {dinheiro(evento.price)}
-                    </span>
-                    <span className="text-xs text-suave transition-transform duration-200 group-hover:translate-x-1">
-                      ver detalhes &rarr;
-                    </span>
+                  <div className="flex flex-1 flex-col p-5">
+                    <h3 className="font-medium transition-colors group-hover:text-marca">
+                      {evento.name}
+                    </h3>
+                    <p className="mt-1 text-sm text-suave">{evento.venue}</p>
+                    <p className="mt-3 text-sm text-suave">{dataEHora(evento.eventDate)}</p>
+
+                    <div className="mt-auto flex items-center justify-between border-t border-borda/60 pt-4">
+                      <span className="numerico text-lg font-semibold text-marca">
+                        {dinheiro(evento.price)}
+                      </span>
+                      <span className="text-xs text-suave transition-transform duration-200 group-hover:translate-x-1">
+                        ver detalhes &rarr;
+                      </span>
+                    </div>
                   </div>
                 </Cartao>
               </Link>

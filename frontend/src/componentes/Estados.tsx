@@ -17,11 +17,16 @@ export function EsqueletoDeCartoes({ quantos = 6 }: { quantos?: number }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: quantos }, (_, i) => (
-        <div key={i} className="vidro rounded-xl border border-borda p-5">
-          <Esqueleto className="h-5 w-3/4" />
-          <Esqueleto className="mt-2.5 h-4 w-1/2" />
-          <Esqueleto className="mt-5 h-4 w-2/3" />
-          <Esqueleto className="mt-5 h-6 w-24" />
+        <div key={i} className="vidro overflow-hidden rounded-xl border border-borda">
+          {/* Mesma proporcao da capa do cartao. Um esqueleto sem ela devolveria o solavanco
+              que ele existe para evitar, agora na altura de uma imagem inteira. */}
+          <Esqueleto className="aspect-[16/9] w-full rounded-none" />
+          <div className="p-5">
+            <Esqueleto className="h-5 w-3/4" />
+            <Esqueleto className="mt-2.5 h-4 w-1/2" />
+            <Esqueleto className="mt-5 h-4 w-2/3" />
+            <Esqueleto className="mt-5 h-6 w-24" />
+          </div>
         </div>
       ))}
     </div>

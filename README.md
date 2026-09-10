@@ -138,6 +138,13 @@ frontend.
 
 Nenhum `.env` é necessário. Todo valor tem padrão.
 
+O catálogo sobe povoado, com onze eventos de demonstração. As datas são calculadas a partir de
+`NOW()`, e não cravadas: um seed com data fixa apodrece e, meses depois, entrega um catálogo cheio
+de eventos que já aconteceram. Entre eles há um rascunho e um cancelado — estão ali justamente
+para que dê para conferir na tela que o catálogo público não os mostra. Um dos eventos tem
+cinquenta lugares, que é o que faz a [demo de concorrência](http://localhost:5173/demo/concorrencia)
+esgotar de verdade em vez de aprovar duzentas reservas sem disputa.
+
 Prefere ver em Kubernetes? Os manifestos estão em [`k8s/`](k8s/) — Kustomize, num cluster `kind`
 descartável, com o `booking-service` em duas réplicas. O passo a passo está no
 [`k8s/README.md`](k8s/README.md).
@@ -467,7 +474,7 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**283 no total** — 260 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**287 no total** — 264 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 23 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -487,6 +494,7 @@ banco em memória não o reproduz.
 | `MetricasPrometheusIntegrationTest` | Os nomes de métrica de que os painéis dependem continuam existindo — e o próprio monitoramento fica fora deles |
 | `PainelDeStatusIntegrationTest` | Com o Prometheus fora, o painel responde `503` em vez de pintar os seis serviços de vermelho — e o preflight de CORS é respondido num caminho que não é rota |
 | `Status.test.tsx` | "Sem tráfego" e "0 ms" não são a mesma coisa, e a tela não os confunde |
+| `SeedDeEventosIntegrationTest` | O catálogo de demonstração não apodrece: falha se alguém trocar as datas relativas do seed por constantes — um defeito que só apareceria meses depois |
 
 ```bash
 ./mvnw clean install          # backend — exige Docker, para os Testcontainers

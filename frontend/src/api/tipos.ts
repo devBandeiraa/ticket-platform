@@ -46,6 +46,8 @@ export interface EventoResumo {
   eventDate: string
   price: number
   totalTickets: number
+  /** Capa do evento. Nulo quando ainda nao ha arte — a tela desenha um fundo derivado do nome. */
+  imageUrl: string | null
 }
 
 export interface EventoDetalhe extends EventoResumo {
@@ -64,6 +66,7 @@ export interface EventoFormulario {
   eventDate: string
   totalTickets: number
   price: number
+  imageUrl?: string | null
 }
 
 export interface Disponibilidade {

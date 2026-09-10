@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { buscarEvento, consultarDisponibilidade } from '../api/eventos'
 import { reservar } from '../api/reservas'
 import { useSessao } from '../auth/SessaoContext'
+import { Capa } from '../componentes/Capa'
 import { Carregando, Erro, mensagemDe } from '../componentes/Estados'
 import { Botao, Cartao } from '../componentes/Ui'
 import { dataEHora, dinheiro } from '../componentes/formato'
@@ -62,7 +63,16 @@ export function DetalheDoEvento() {
           &larr; voltar ao catalogo
         </Link>
 
-        <h1 className="mt-3 text-2xl font-semibold">{evento.data.name}</h1>
+        {/* Prioridade: esta capa esta acima da dobra, e adiar o carregamento dela deixaria o
+            topo da pagina cinza no primeiro instante — justo o oposto do que uma capa faz. */}
+        <Capa
+          nome={evento.data.name}
+          url={evento.data.imageUrl}
+          prioridade
+          className="mt-3 aspect-[21/9] w-full rounded-xl border border-borda"
+        />
+
+        <h1 className="mt-5 text-2xl font-semibold">{evento.data.name}</h1>
         <p className="mt-1 text-suave">{evento.data.venue}</p>
         <p className="mt-1 text-sm">{dataEHora(evento.data.eventDate)}</p>
 

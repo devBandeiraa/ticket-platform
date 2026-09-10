@@ -41,6 +41,11 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8082"
+            # O seed do catalogo. Assim como o do admin no auth-service, vive num overlay em
+            # ambiente de verdade — aqui e o que faz o cluster subir com algo para mostrar,
+            # em vez de um catalogo vazio.
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev"
             - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
               value: "true"
           envFrom:
