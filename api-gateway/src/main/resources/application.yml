@@ -75,13 +75,24 @@ spring:
 
             # --- booking-service ---
 
-            # Antes da rota do catalogo de proposito: /events/{id}/availability e o unico caminho
-            # sob /events que pertence ao booking-service, que e quem tem o contador de estoque.
+            # Antes da rota do catalogo de proposito: sob /events ha DOIS caminhos que pertencem
+            # ao booking-service, e nao ao catalogo — disponibilidade e mapa de assentos. Os dois
+            # respondem sobre ESTADO (quanto resta, quem esta sentado onde), e estado mora aqui.
             # Invertida a ordem, o event-service receberia a chamada e responderia 404.
+            #
+            # O `/seats` foi acrescentado na Fase 18 e custou um 500 em producao local antes de
+            # alguem lembrar desta tabela: o endpoint existia, o servico estava no ar, e a
+            # requisicao ia parar no servico errado. E exatamente o risco #21 do mapeamento se
+            # repetindo — rota generica engolindo a especifica.
             - id: booking-disponibilidade
               uri: ${servicos.booking}
               predicates:
                 - Path=/api/events/*/availability
+
+            - id: booking-mapa-de-assentos
+              uri: ${servicos.booking}
+              predicates:
+                - Path=/api/events/*/seats
 
             - id: booking
               uri: ${servicos.booking}

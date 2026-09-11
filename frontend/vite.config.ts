@@ -11,5 +11,7 @@ export default defineConfig({
     // jsdom pelo localStorage, de que o cliente HTTP depende para guardar o refresh token.
     environment: 'jsdom',
     globals: true,
+    // Registra os matchers de DOM do jest-dom. Ver src/setupTests.ts.
+    setupFiles: ['./src/setupTests.ts'],
   },
 })

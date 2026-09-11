@@ -87,6 +87,12 @@ class DocumentacaoOpenApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/events/{eventId}/availability'].get.security")
                         .doesNotExist())
+                // O mapa e publico pelo mesmo motivo: escolher o lugar faz parte de decidir a
+                // compra, e exigir conta antes disso esconderia o que convence. Na Fase 18 a
+                // documentacao dizia isso enquanto o SecurityConfig exigia token — a tela levava
+                // 401 num endpoint anunciado como aberto.
+                .andExpect(jsonPath("$.paths['/events/{eventId}/seats'].get.security")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.paths['/bookings'].post.security[0]['bearer-jwt']")
                         .exists());
     }

@@ -18,7 +18,7 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white)](#observabilidade)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
-[![Testes](https://img.shields.io/badge/testes-308-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-328-success?style=flat-square)](#testes)
 
 </div>
 
@@ -86,8 +86,7 @@ ela funciona.
 *Concorrência*, escolha a **Sessão única: Orquestra de Câmara da Lapa** — cinquenta lugares, o
 menor evento do catálogo — e dispare duzentas reservas simultâneas. O resultado vem separado por
 código de resposta: quantas foram confirmadas, quantas levaram `409 SOLD_OUT`, quantas morreram no
-lock. O número que importa é o primeiro: **vendidos a
-mais**.
+lock. O número que importa é o que não aparece: **vendidos a mais**.
 
 **Dez minutos, com código.** Nesta ordem:
 
@@ -102,15 +101,16 @@ mais**.
 
 | Tema | Onde ele aparece aqui |
 |---|---|
-| Condição de corrida e controle de concorrência | `UPDATE` condicional + `CHECK constraint`, em vez de ler-decidir-gravar |
+| Condição de corrida e controle de concorrência | `UPDATE` condicional sobre uma linha por assento, em vez de ler-decidir-gravar — e por que a invariante virou estrutural quando o contador saiu |
 | Consistência entre serviços sem commit distribuído | Transactional outbox no produtor, deduplicação no consumidor |
 | Idempotência de API | `Idempotency-Key` única **por usuário**, e o motivo de não ser global |
 | Ponto único de falha e degradação | O que acontece com o Redis fora do ar — e por que a reserva continua |
 | Falha em cascata entre serviços | Circuit breaker que separa `404` de `503` — e por que essa distinção é a linha mais importante da configuração |
 | Autenticação em sistema distribuído | Validação na borda **e** dentro de cada serviço, e o cabeçalho que o gateway reescreve |
 | Observabilidade | Um trace que atravessa a outbox, e as quatro perguntas diferentes que um incidente faz |
-| Testar sistema concorrente | 200 threads contra PostgreSQL, Redis e RabbitMQ reais via Testcontainers |
-| Armadilhas de ORM | `Persistable`, id atribuído, e a diferença entre `persist` e `merge` |
+| Testar sistema concorrente | 200 threads contra PostgreSQL, Redis e RabbitMQ reais via Testcontainers — inclusive todas disputando **o mesmo assento** |
+| Armadilhas de ORM | `Persistable`, id atribuído, a diferença entre `persist` e `merge`, e por que o Hibernate emite `INSERT` antes de `DELETE` no mesmo flush |
+| Acessibilidade sob restrição real | Um mapa de 3000 lugares navegável por teclado, com *roving tabindex* em vez de 3000 tabulações |
 
 E também sobre o que **não** foi feito: [limitações conscientes](#limitações-conscientes) lista as
 escolhas de escopo, cada uma com o que mudaria em produção.
@@ -488,8 +488,8 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**308 no total** — 285 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
-e 23 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
+**328 no total** — 288 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+e 40 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
 | Teste | O que prova |
@@ -499,6 +499,9 @@ banco em memória não o reproduz.
 | `doisNaoPodemLevarOMesmoLugar` | 200 threads pedindo **o mesmo assento**: exatamente uma leva |
 | `naoDeveEntregarReservaParcial` | Conjuntos de lugares sobrepostos, em paralelo — ninguém fica com metade do que pediu |
 | `AssentoConstraintIntegrationTest` | Um lugar, uma linha: nem um `INSERT` direto duplica o assento |
+| `MapaDeAssentos.test.tsx` | O mapa é navegável por teclado e descritível por leitor de tela — um assento por setor na ordem de tabulação, e cada lugar anunciado com setor, fila, preço e situação |
+| `selecaoDeAssentos.test.ts` | O lugar vendido enquanto a pessoa decidia sai da seleção sozinho, em vez de virar um `409` no clique final |
+| `deveRotearOMapaDeAssentosParaOBooking` | A rota do mapa não é engolida pelo `/api/events/**` do catálogo — um defeito real, que só apareceu ao abrir a tela |
 | `OutboxIntegrationTest` | O evento sobrevive à falha do publicador |
 | `ConsumoDeConfirmacaoIntegrationTest` | Duplicata descartada, retry vence falha transitória, DLQ recebe a permanente |
 | `RateLimitIntegrationTest` | Os dois baldes são independentes, e o `429` sai no formato de erro da API |
@@ -605,9 +608,9 @@ código de negócio, e atualizado a cada fase:
 - Modelo de dados, tabela por tabela, com a razão de cada constraint
 - Contratos de API e a tabela de rotas do gateway
 - O fluxo da reserva passo a passo, do clique ao commit
-- **62 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
+- **68 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
   depois, ao subir em Kubernetes ou ao olhar o painel durante uma queda de verdade
-- **75 decisões registradas**, cada uma com a justificativa e a alternativa recusada
+- **80 decisões registradas**, cada uma com a justificativa e a alternativa recusada
 
 Cada uma das catorze fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
 assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)

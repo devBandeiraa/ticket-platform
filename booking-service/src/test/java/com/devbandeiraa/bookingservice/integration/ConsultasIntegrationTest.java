@@ -86,6 +86,42 @@ class ConsultasIntegrationTest {
                 .andExpect(jsonPath("$.available").value(7));
     }
 
+    /**
+     * O mapa e publico, e este teste chama o endpoint DE VERDADE — sem token.
+     *
+     * <p>Na Fase 18 a documentacao ja anunciava o mapa como aberto, e a especificacao OpenAPI
+     * concordava, enquanto o {@code SecurityConfig} exigia token. Um teste que so verificasse a
+     * especificacao passaria; quem abrisse a tela levava {@code 401}. A licao: documentacao e
+     * configuracao sao duas afirmacoes distintas, e cada uma precisa ser verificada onde vive.
+     */
+    @Test
+    @DisplayName("mapa de assentos e publico: um visitante sem conta consegue ver os lugares")
+    void mapaDeAssentosDeveSerPublico() throws Exception {
+        estoqueHidratado(10);
+
+        mockMvc.perform(get("/events/" + eventoId + "/seats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventId").value(eventoId.toString()))
+                .andExpect(jsonPath("$.seats.length()").value(10))
+                .andExpect(jsonPath("$.seats[0].status").value("FREE"))
+                .andExpect(jsonPath("$.seats[0].label").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("o mapa mostra como ocupado o lugar que ja foi reservado")
+    void mapaDeveMarcarOcupados() throws Exception {
+        estoqueHidratado(10);
+        reservaPendente(3);
+
+        mockMvc.perform(get("/events/" + eventoId + "/seats"))
+                .andExpect(status().isOk())
+                // Tres lugares saem de FREE: e o que a tela usa para desabilita-los.
+                .andExpect(jsonPath("$.seats[?(@.status == 'RESERVED')]")
+                        .value(org.hamcrest.Matchers.hasSize(3)))
+                .andExpect(jsonPath("$.seats[?(@.status == 'FREE')]")
+                        .value(org.hamcrest.Matchers.hasSize(7)));
+    }
+
     @Test
     @DisplayName("evento nunca visto e hidratado na primeira consulta de disponibilidade")
     void deveHidratarNaPrimeiraConsulta() throws Exception {

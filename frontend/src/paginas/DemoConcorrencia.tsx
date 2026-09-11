@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { consultarDisponibilidade, listarPublicados } from '../api/eventos'
-import { cancelarReserva, reservar } from '../api/reservas'
+import { cancelarReserva, reservarMelhorDisponivel } from '../api/reservas'
 import { ErroDaApi } from '../api/cliente'
 import { useSessao } from '../auth/SessaoContext'
 import { Carregando, Erro, Vazio } from '../componentes/Estados'
@@ -57,7 +57,7 @@ export function DemoConcorrencia() {
     // Promise.allSettled, e nao um laco: o objetivo e que saiam juntas. Uma de cada vez nao
     // produziria concorrencia alguma, e o teste nao provaria nada.
     const respostas = await Promise.allSettled(
-      Array.from({ length: quantas }, () => reservar(eventoId, 1, crypto.randomUUID())),
+      Array.from({ length: quantas }, () => reservarMelhorDisponivel(eventoId, 1, crypto.randomUUID())),
     )
 
     const contagem: Record<string, number> = {}

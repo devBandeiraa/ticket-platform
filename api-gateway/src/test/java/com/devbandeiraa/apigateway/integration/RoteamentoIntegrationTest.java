@@ -100,6 +100,28 @@ class RoteamentoIntegrationTest {
         assertThat(proximaRequisicao(EVENT)).isNull();
     }
 
+    /**
+     * O mapa de assentos tambem pertence ao booking-service, pelo mesmo motivo da
+     * disponibilidade: os dois respondem sobre <em>estado</em> — quanto resta, quem esta
+     * sentado onde —, e estado mora la.
+     *
+     * <p>Este teste nasceu de um defeito real. Na Fase 18 o endpoint foi criado no servico
+     * certo, subiu saudavel, e mesmo assim devolvia {@code 500}: sem uma rota propria, o
+     * {@code /api/events/**} generico levava a requisicao ao catalogo, que nao a conhece. A
+     * tabela de rotas nao acompanhou o endpoint novo, e nada apontou isso ate alguem abrir a
+     * tela.
+     */
+    @Test
+    @DisplayName("mapa de assentos vai para o booking-service, e nao para o catalogo")
+    void deveRotearOMapaDeAssentosParaOBooking() throws InterruptedException {
+        UUID evento = UUID.randomUUID();
+
+        cliente.get().uri("/api/events/{id}/seats", evento).exchange().expectStatus().isOk();
+
+        assertThat(proximaRequisicao(BOOKING)).isNotNull();
+        assertThat(proximaRequisicao(EVENT)).isNull();
+    }
+
     @Test
     @DisplayName("o catalogo continua indo para o event-service")
     void deveRotearOCatalogoParaOEvent() throws InterruptedException {
