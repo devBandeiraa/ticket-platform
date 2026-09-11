@@ -18,7 +18,8 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white)](#observabilidade)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
-[![Testes](https://img.shields.io/badge/testes-328-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-350-success?style=flat-square)](#testes)
+[![Cobertura](https://img.shields.io/badge/cobertura-88%25-success?style=flat-square)](#testes)
 
 </div>
 
@@ -488,7 +489,7 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**328 no total** — 288 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**350 no total** — 310 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 40 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -514,12 +515,40 @@ banco em memória não o reproduz.
 | `MetricasPrometheusIntegrationTest` | Os nomes de métrica de que os painéis dependem continuam existindo — e o próprio monitoramento fica fora deles |
 | `PainelDeStatusIntegrationTest` | Com o Prometheus fora, o painel responde `503` em vez de pintar os seis serviços de vermelho — e o preflight de CORS é respondido num caminho que não é rota |
 | `Status.test.tsx` | "Sem tráfego" e "0 ms" não são a mesma coisa, e a tela não os confunde |
+| `BookingControllerWebMvcTest` | Cada exceção de domínio vira o código HTTP certo — `SEATS_TAKEN` e `SOLD_OUT` dizem coisas opostas a quem está comprando |
+| `AdminEventControllerWebMvcTest` | Usuário autenticado sem papel de admin recebe `403`, e não `401`: a distinção decide se a tela pede login a quem já está logado |
 | `SeedDeEventosIntegrationTest` | O catálogo de demonstração não apodrece: falha se alguém trocar as datas relativas do seed por constantes — um defeito que só apareceria meses depois |
 
 ```bash
-./mvnw clean install          # backend — exige Docker, para os Testcontainers
+./mvnw clean verify           # backend, com relatório de cobertura — exige Docker
+./mvnw -pl booking-service,event-service test -Dtest='*WebMvcTest'   # fatias web, SEM Docker
 cd frontend && npm test       # frontend
 ```
+
+O relatório agregado sai em `cobertura/target/site/jacoco-agregado/index.html`:
+**87,9% de linhas no total, 92,9% nas camadas de service.**
+
+**Por que o relatório é agregado, e não por módulo.** Medido isoladamente, o `shared-security`
+dava 33% — e o número mentia. `JwtAuthenticationFilter`, `SecurityErrorResponder` e
+`ApiExceptionHandlerSupport` apareciam com **zero**, quando são percorridos em praticamente toda
+requisição dos outros seis serviços. O JaCoCo por módulo só enxerga o que os testes *daquele*
+módulo executam, e o `shared-security` quase não tem testes próprios: ele é exercitado por quem
+o usa. No agregado ele aparece com 96,5%, que é a verdade. Publicar os 33% pediria a alguém que
+"melhorasse" a cobertura de código já coberto — provavelmente escrevendo teste redundante para
+calar o número.
+
+**As fatias `@WebMvcTest` rodam sem Docker**, e isso é o ponto delas. Todo o resto exige
+Testcontainers, o que é correto — o isolamento do PostgreSQL sob concorrência é o objeto do
+teste. Mas significava que, com o Docker fora do ar, nada podia ser verificado. As fatias cobrem
+o que não depende de banco: matriz de validação, tradução de exceção em código HTTP e
+autorização por prefixo.
+
+**Sobre o número da cobertura.** Ele mede linha executada, não regra verificada — um teste que
+percorre um método sem afirmar nada conta igual a um que prova alguma coisa. O
+`OversellingSemLockIntegrationTest` prova mais sobre este sistema do que qualquer percentual, e
+é por isso que a tabela acima existe: ela diz o que cada teste *prova*, que é a pergunta que
+importa. DTOs, `config/` e `*Application` ficam fora da contagem, porque cobri-los mediria o
+Spring.
 
 ---
 
@@ -608,9 +637,9 @@ código de negócio, e atualizado a cada fase:
 - Modelo de dados, tabela por tabela, com a razão de cada constraint
 - Contratos de API e a tabela de rotas do gateway
 - O fluxo da reserva passo a passo, do clique ao commit
-- **68 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
+- **71 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
   depois, ao subir em Kubernetes ou ao olhar o painel durante uma queda de verdade
-- **80 decisões registradas**, cada uma com a justificativa e a alternativa recusada
+- **84 decisões registradas**, cada uma com a justificativa e a alternativa recusada
 
 Cada uma das catorze fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
 assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)

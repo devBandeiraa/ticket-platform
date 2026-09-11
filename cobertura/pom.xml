@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.devbandeiraa</groupId>
+		<artifactId>ticket-platform</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>cobertura</artifactId>
+	<name>cobertura</name>
+	<description>Relatorio de cobertura agregado do monorepo</description>
+
+	<!--
+		Modulo que nao produz codigo: existe so para somar a cobertura dos demais.
+
+		A razao e concreta. O `shared-security` media 33% de linhas no relatorio por modulo, e o
+		numero mentia: `JwtAuthenticationFilter`, `SecurityErrorResponder` e
+		`ApiExceptionHandlerSupport` apareciam com ZERO, quando na verdade sao percorridos em
+		praticamente toda requisicao dos outros seis servicos. O JaCoCo por modulo so enxerga o
+		que os testes DAQUELE modulo executam, e o shared-security quase nao tem testes proprios
+		— ele e exercitado por quem o usa.
+
+		Publicar 33% seria pedir a alguem que "melhorasse a cobertura" de codigo ja coberto, e
+		provavelmente escrevendo teste redundante para calar o numero. O `report-aggregate` le os
+		arquivos .exec de todos os modulos e atribui a execucao a classe certa, independentemente
+		de qual suite a disparou.
+
+		Precisa ser o ultimo modulo da ordem de construcao: o agregado so existe depois que todos
+		os .exec foram escritos.
+	-->
+
+	<dependencies>
+		<!--
+			Dependencias existem apenas para o report-aggregate saber quais modulos somar — ele
+			agrega exatamente os que estao no classpath deste projeto. Nao ha codigo aqui que as
+			use, e por isso o maven-dependency-plugin as acusaria como nao utilizadas se o
+			projeto tivesse essa verificacao ligada.
+		-->
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>shared-security</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>auth-service</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>event-service</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>booking-service</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>notification-service</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>payment-simulator</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.devbandeiraa</groupId>
+			<artifactId>api-gateway</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<executions>
+					<!--
+						Sobrescreve as execucoes herdadas do parent: aqui nao ha teste a
+						instrumentar nem relatorio proprio a gerar, so a soma.
+					-->
+					<execution>
+						<id>prepara-agente</id>
+						<phase>none</phase>
+					</execution>
+					<execution>
+						<id>gera-relatorio</id>
+						<phase>none</phase>
+					</execution>
+					<execution>
+						<id>agrega</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report-aggregate</goal>
+						</goals>
+						<configuration>
+							<title>ticket-platform — cobertura agregada</title>
+							<outputDirectory>${project.build.directory}/site/jacoco-agregado</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
