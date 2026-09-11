@@ -287,6 +287,14 @@ services:
       EVENT_DB_NAME: ${EVENT_DB_NAME:-eventdb}
       EVENT_DB_USER: ${EVENT_DB_USER:-event_user}
       EVENT_DB_PASSWORD: ${EVENT_DB_PASSWORD:-event_pass}
+      # O seed do catalogo vive sob o profile `dev`. Sem ele a plataforma sobe inteira e
+      # funcionando, mas com a primeira tela vazia — e nao ha o que reservar, pagar ou
+      # demonstrar ate alguem cadastrar um evento a mao.
+      #
+      # Ligado por padrao pelo mesmo motivo do AUTH_PROFILE: este compose E o ambiente de
+      # desenvolvimento. Publicando de verdade, defina EVENT_PROFILE vazio e o catalogo
+      # nasce como deve nascer em producao, sem eventos ficticios.
+      SPRING_PROFILES_ACTIVE: ${EVENT_PROFILE-dev}
     depends_on:
       postgres:
         condition: service_healthy

@@ -100,3 +100,21 @@ springdoc:
     # significa nada para quem le.
     operationsSorter: method
     tagsSorter: alpha
+
+---
+# Perfil de desenvolvimento: acrescenta a pasta db/dev as locations do Flyway,
+# onde vive o seed do catalogo.
+#
+# Nao ha profile padrao, pelo mesmo motivo do auth-service. Se `dev` fosse o
+# padrao, subir em producao sem lembrar de sobrescrever encheria o catalogo de
+# eventos ficticios — com data futura e status PUBLISHED, prontos para alguem
+# tentar comprar. O seed precisa ser pedido explicitamente:
+#
+#     ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+#     SPRING_PROFILES_ACTIVE=dev java -jar event-service.jar
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev

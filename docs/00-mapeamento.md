@@ -119,6 +119,26 @@ mensagem.
 
 Índice `(status, event_date)` para a listagem pública paginada.
 
+> **Reformulado na Fase 16.** A tabela acima descreve o desenho por quantidade, em que um ingresso
+> não tinha lugar e todos custavam o mesmo. O evento passou a ter **setores** — tabela `sectors`,
+> com nome, preço próprio, número de filas e lugares por fila —, e a capacidade virou a soma das
+> dimensões. `image_url` entrou na Fase 15.
+>
+> `total_tickets` e `price` **continuam nesta tabela**, agora como valores **derivados**:
+> capacidade é a soma dos setores, e preço é o **menor** entre eles — o "a partir de" do cartão.
+> Não são redundância por descuido, e sim o que evita um N+1: a listagem pública mostra preço e
+> capacidade de nove eventos por página, e lidos dos setores seriam nove consultas a mais. Só a
+> tela de detalhe carrega o layout.
+>
+> Manter as duas colunas é também o que permitiu a fase entrar sem tocar no `booking-service`,
+> que segue lendo capacidade e preço sem saber que setores existem.
+>
+> **Não há tabela de assentos.** Um setor é regular, então a lista de lugares é o resultado de
+> `filas × lugares` — e o `booking-service` precisa de uma linha por assento de qualquer forma,
+> por ser quem conhece o *estado* de cada lugar. A identidade do assento é a chave natural:
+> evento, setor, fila e número. O custo aceito é que layout irregular e assento interditado não
+> têm como ser representados; ambos exigiriam a tabela.
+
 O `event-service` **não** registra quantos ingressos foram vendidos — ver decisão em
 [3. Fluxo da reserva](#3-fluxo-da-reserva).
 
@@ -700,6 +720,13 @@ compose.
 | 45 | Um painel de status no frontend exigiria publicar o Prometheus para o navegador, entregando junto o nome de cada serviço, cada endpoint e cada métrica interna a quem abrisse o endereço | Média | **Resolvido na Fase 14:** o gateway agrega em `GET /api/status` e devolve o resultado já traduzido. O gateway já é o único endereço que o navegador conhece; abrir um segundo contradiria isso |
 | 46 | Prometheus fora do ar faria o painel pintar seis serviços saudáveis de vermelho, mandando alguém investigar o que não está quebrado | Média | **Resolvido na Fase 14:** falha de coleta vira `503 METRICS_UNAVAILABLE`, com a tela dizendo que perdeu a fonte. "Sem métricas" e "tudo fora" são leituras opostas |
 | 47 | O circuito não fecha sozinho depois que o `event-service` volta: o `404` é ignorado (risco 39) e a hidratação acontece uma vez por evento, então reservar num evento já hidratado não gera chamada alguma — e o estado exibido fica em *meio aberto* indefinidamente | Baixa | **Encontrado na Fase 14**, verificando o painel num ciclo completo de queda e volta. Não é falha de correção — meio aberto deixa chamadas passarem —, mas o estado exibido engana. Fechar exige três chamadas bem-sucedidas, ou seja, três eventos novos. Registrado como o que a demonstração precisa dizer, e não corrigido: baixar `permitted-number-of-calls-in-half-open-state` deixaria a demonstração mais fácil ao custo de um circuito que fecha com menos evidência |
+| 48 | Catálogo nascia vazio: não havia seed de eventos, e quem clonava o repositório subia a plataforma para encontrar a primeira tela sem nada — sem evento não há reserva, pagamento nem demo a demonstrar | Média | **Resolvido na Fase 15:** seed sob o profile `dev`, com datas calculadas a partir de `NOW()`. Um teste falha se alguém as trocar por constantes: seed com data fixa apodrece, e meses depois entrega um catálogo pior que vazio — cheio de eventos que já aconteceram, que a validação de data futura impede até de corrigir pela tela |
+| 49 | Capa vinda de CDN externo deixaria onze retângulos quebrados no lugar do catálogo quando a rede falhasse | Baixa | **Resolvido na Fase 15:** o mesmo fundo derivado do nome cobre os dois casos que o usuário não distingue — evento sem capa cadastrada e capa que não carregou. A tela não depende dessa rede para ficar de pé |
+| 50 | Estado de falha da capa guardado como booleano prenderia a prévia do formulário no fundo de reserva: corrigir uma URL errada não traria a imagem de volta, justamente na tela onde se digita e se corrige uma URL | Baixa | **Encontrado na Fase 15**, relendo o componente. Passou a guardar *qual* URL falhou; trocar de endereço já é a própria reposição |
+| 51 | Limpar e recriar os setores viola `uk_sectors_nome`: dentro do mesmo flush o Hibernate emite os `INSERT` antes dos `DELETE`, então recriar um setor com o nome que acabou de sair colide consigo mesmo — trocar o preço da "Plateia" estourava `500` | **Alta** | **Encontrado na Fase 16** pelo teste de alteração. O layout passou a ser reconciliado por **nome**: quem permanece é atualizado no lugar, e só some quem saiu da planta. De quebra resolve a troca de nomes entre dois setores, que viraria dois pares de delete-insert colidindo do mesmo jeito |
+| 52 | `BigDecimal.equals` leva a escala em conta, então `150.00` vindo do banco e `150.0` vindo do JSON seriam "diferentes" — e editar apenas a descrição de um evento publicado levaria um `409` por um layout que ninguém mudou, já que o mesmo record carrega dados e planta | Média | **Evitado na Fase 16:** a comparação de layout usa `compareTo`, que compara valor. Coberto por teste que reenvia o preço com outra escala |
+| 53 | Alterar a planta de um evento já publicado mudaria a casa por baixo de quem já comprou: um lugar vendido poderia deixar de existir, ou a capacidade cair abaixo do já vendido — e o `booking-service` já copiou a capacidade | **Alta** | **Resolvido na Fase 16:** o layout só muda enquanto o evento é rascunho, com `409 EVENT_LAYOUT_LOCKED`. Nome, data, descrição e capa seguem editáveis, e a distinção importa para o admin saber o que ainda pode corrigir |
+| 54 | Dois setores com o mesmo nome tornariam a chave natural do assento ambígua — "Plateia A3" apontaria para dois lugares — e chegariam ao banco como violação de constraint, virando um `500` que fala de índice sobre um dado recém-digitado | Média | **Resolvido na Fase 16:** o domínio recusa antes, com `400 INVALID_LAYOUT`. A constraint permanece como última rede |
 
 ---
 
@@ -764,3 +791,11 @@ compose.
 | Origem dos dados do `/status` *(Fase 14)* | Agregador no gateway | Publicar o Prometheus para o navegador entregaria o nome de cada serviço, cada endpoint e cada métrica interna a quem abrisse o endereço — e desmontaria a regra de que o gateway é o único endereço que o navegador conhece |
 | Latência sem tráfego *(Fase 14)* | `null` atravessa a API inteira | Uma divisão por taxa zero devolve `NaN`, e convertê-lo em zero no caminho faria a tela dizer "0.0 ms", que lê como *responde instantaneamente* — o oposto de *ninguém chamou*. O nulo custa um campo opcional e evita uma mentira |
 | Falha de coleta no `/status` *(Fase 14)* | `503` próprio, e não seis serviços vermelhos | São diagnósticos opostos: um manda investigar o painel, o outro manda investigar seis serviços saudáveis |
+| Seed do catálogo *(Fase 15)* | Datas relativas a `NOW()`, e autoritativo sobre os próprios eventos | Data cravada apodrece, e a validação de data futura impediria corrigir pela tela o que ela mesma estragou. Os onze eventos de id fixo são reescritos quando o seed muda, porque a troca de modelo da Fase 16 deixaria a capacidade antiga discordando dos setores novos |
+| Capa do evento *(Fase 15)* | URL em coluna, e não o binário | Servir imagem é trabalho de CDN. Bytes em coluna atravessam a aplicação a cada consulta, incham o backup e não ganham cache de borda |
+| Modelo de lugar *(Fase 16)* | Só lugar marcado, sem pista | Suportar os dois dobraria o caminho de reserva — lógica por quantidade **e** por assento, com dois testes de concorrência e duas formas de devolver estoque — no trecho hoje mais sólido do repositório. O seed trocou os festivais por teatros e salas de concerto, onde lugar marcado é o normal |
+| Preço *(Fase 16)* | Por setor, e não por evento | Sem isso o setor vira etiqueta visual, e o usuário não tem razão para preferir um lugar a outro. O evento passa a anunciar o menor preço, como "a partir de" |
+| Descrição do layout *(Fase 16)* | Setores com filas × lugares | Compacto de digitar e gera mapas grandes com pouca entrada. Modelos prontos em código seriam dado disfarçado de lógica; lista explícita de assentos é impraticável de digitar para mil e quinhentos lugares |
+| Persistência dos assentos *(Fase 16)* | Nenhuma: só os setores | Guardar as 1500 linhas que `filas × lugares` gera seria guardar o resultado de uma multiplicação — e guardá-lo em **dois** bancos, já que o `booking-service` precisa de uma linha por assento de qualquer forma, por ser quem conhece o estado de cada lugar. A identidade vira a chave natural, sem UUID a manter em concordância entre os dois lados |
+| `total_tickets` e `price` no evento *(Fase 16)* | Mantidos, agora derivados | Lidos dos setores, a listagem pública faria nove consultas a mais por página. Mantidos, a fase entrou sem tocar no `booking-service`, que segue lendo os dois sem saber que setores existem |
+| Rótulo da fila *(Fase 16)* | Calculado no domínio e devolvido pronto na API | O rótulo entra na chave natural do assento: se cliente e servidor divergirem na nomeação, passam a falar de lugares diferentes com o mesmo nome |

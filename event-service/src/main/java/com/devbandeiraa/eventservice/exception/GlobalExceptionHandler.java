@@ -38,4 +38,26 @@ public class GlobalExceptionHandler extends ApiExceptionHandlerSupport {
         return responder(HttpStatus.CONFLICT, "EVENT_NOT_EDITABLE",
                 excecao.getMessage(), requisicao, traceId);
     }
+
+    @ExceptionHandler(LayoutInvalidoException.class)
+    public ResponseEntity<ApiError> tratarLayoutInvalido(
+            LayoutInvalidoException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.info("[{}] {}", traceId, excecao.getMessage());
+
+        return responder(HttpStatus.BAD_REQUEST, "INVALID_LAYOUT",
+                excecao.getMessage(), requisicao, traceId);
+    }
+
+    @ExceptionHandler(LayoutNaoAlteravelException.class)
+    public ResponseEntity<ApiError> tratarLayoutNaoAlteravel(
+            LayoutNaoAlteravelException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.warn("[{}] {}", traceId, excecao.getMessage());
+
+        return responder(HttpStatus.CONFLICT, "EVENT_LAYOUT_LOCKED",
+                excecao.getMessage(), requisicao, traceId);
+    }
 }

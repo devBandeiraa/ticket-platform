@@ -16,7 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -130,25 +132,67 @@ class AdminEventCrudIntegrationTest {
     }
 
     @Test
-    @DisplayName("recusa quantidade de ingressos igual a zero")
-    void deveRecusarZeroIngressos() throws Exception {
+    @DisplayName("recusa setor sem nenhuma fila")
+    void deveRecusarSetorVazio() throws Exception {
         Map<String, Object> corpo = corpoValido();
-        corpo.put("totalTickets", 0);
+        corpo.put("sectors", List.of(setor("Plateia", "150.00", 0, 20)));
 
         mockMvc.perform(criar(corpo))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fields.totalTickets").isNotEmpty());
+                .andExpect(jsonPath("$.fields['sectors[0].rowsCount']").isNotEmpty());
     }
 
     @Test
-    @DisplayName("recusa preco negativo")
+    @DisplayName("recusa evento sem setor algum")
+    void deveRecusarEventoSemSetores() throws Exception {
+        Map<String, Object> corpo = corpoValido();
+        corpo.put("sectors", List.of());
+
+        // Sem setor nao ha de onde derivar capacidade nem preco, e o evento seria uma casa
+        // sem lugar nenhum.
+        mockMvc.perform(criar(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.sectors").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("recusa preco negativo no setor")
     void deveRecusarPrecoNegativo() throws Exception {
         Map<String, Object> corpo = corpoValido();
-        corpo.put("price", new BigDecimal("-1.00"));
+        corpo.put("sectors", List.of(setor("Plateia", "-1.00", 25, 20)));
 
         mockMvc.perform(criar(corpo))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fields.price").isNotEmpty());
+                .andExpect(jsonPath("$.fields['sectors[0].price']").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("capacidade e preco sao derivados dos setores, e nao aceitos do cliente")
+    void deveDerivarCapacidadeEPrecoDosSetores() throws Exception {
+        Map<String, Object> corpo = corpoValido();
+        corpo.put("sectors", List.of(
+                setor("Plateia", "180.00", 40, 25),   // 1000
+                setor("Frisas", "240.00", 10, 15),    //  150
+                setor("Galeria", "70.00", 14, 25)));  //  350
+        // Enviados a esmo: o servidor deve ignora-los e calcular a partir dos setores. Aceitos,
+        // o catalogo anunciaria uma casa que nao existe.
+        corpo.put("totalTickets", 999999);
+        corpo.put("price", new BigDecimal("1.00"));
+
+        mockMvc.perform(criar(corpo))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.totalTickets").value(1500))
+                // O menor preco entre os setores: o "a partir de" do cartao.
+                .andExpect(jsonPath("$.price").value(70.00))
+                .andExpect(jsonPath("$.sectors.length()").value(3))
+                // A ordem de exibicao vem da ordem em que os setores foram declarados.
+                .andExpect(jsonPath("$.sectors[0].name").value("Plateia"))
+                .andExpect(jsonPath("$.sectors[2].name").value("Galeria"))
+                .andExpect(jsonPath("$.sectors[1].capacity").value(150))
+                // Os rotulos das filas vem prontos do servidor, para as duas pontas nao
+                // chegarem a nomes diferentes para a mesma fila.
+                .andExpect(jsonPath("$.sectors[1].rowLabels[0]").value("A"))
+                .andExpect(jsonPath("$.sectors[1].rowLabels[9]").value("J"));
     }
 
     // ---------- ciclo de vida ----------
@@ -174,7 +218,10 @@ class AdminEventCrudIntegrationTest {
 
         Map<String, Object> alteracao = corpoValido();
         alteracao.put("name", "Show de Jazz");
-        alteracao.put("price", new BigDecimal("99.90"));
+        // O preco do evento nao e mais um campo proprio: muda-se o setor, e o evento passa a
+        // anunciar o menor preco entre eles. O evento ainda e rascunho, entao o layout pode
+        // mudar.
+        alteracao.put("sectors", List.of(setor("Plateia", "99.90", 25, 20)));
 
         mockMvc.perform(put("/admin/events/" + id)
                         .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
@@ -244,6 +291,65 @@ class AdminEventCrudIntegrationTest {
                 .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
     }
 
+    // ---------- layout depois de publicado ----------
+
+    @Test
+    @DisplayName("publicado, o evento recusa mudanca de setor com 409")
+    void naoDeveAlterarLayoutDepoisDePublicado() throws Exception {
+        String id = publicarEObterId();
+
+        Map<String, Object> alteracao = corpoValido();
+        // Metade dos lugares desaparece. Se isto passasse, um assento ja vendido poderia
+        // deixar de existir, e a capacidade cairia abaixo do que o booking-service ja copiou.
+        alteracao.put("sectors", List.of(setor("Plateia", "150.00", 12, 20)));
+
+        mockMvc.perform(put("/admin/events/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(alteracao)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("EVENT_LAYOUT_LOCKED"));
+    }
+
+    @Test
+    @DisplayName("publicado, o evento ainda aceita mudanca de nome, data e capa")
+    void deveAlterarDadosDePublicadoSemMexerNoLayout() throws Exception {
+        String id = publicarEObterId();
+
+        // O mesmo record carrega dados e layout, entao a tela reenvia os setores inalterados
+        // junto de qualquer edicao. Sem comparar o layout antes de recusar, esta requisicao —
+        // que so muda o nome — levaria um 409 por algo que ninguem tentou mudar.
+        Map<String, Object> alteracao = corpoValido();
+        alteracao.put("name", "Show de Jazz");
+
+        mockMvc.perform(put("/admin/events/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(alteracao)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Show de Jazz"));
+    }
+
+    @Test
+    @DisplayName("preco reenviado com outra escala nao conta como mudanca de layout")
+    void escalaDoPrecoNaoDeveContarComoMudanca() throws Exception {
+        String id = publicarEObterId();
+
+        // O banco devolve 150.00; um cliente pode reenviar 150.0 ou 150. BigDecimal.equals leva
+        // a escala em conta e diria que sao diferentes — e editar so o nome de um evento
+        // publicado passaria a falhar. A comparacao usa compareTo justamente por isto.
+        Map<String, Object> alteracao = corpoValido();
+        alteracao.put("name", "Show de Jazz");
+        alteracao.put("sectors", List.of(setor("Plateia", "150.0", 25, 20)));
+
+        mockMvc.perform(put("/admin/events/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(alteracao)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Show de Jazz"));
+    }
+
     // ---------- auxiliares ----------
 
     private Map<String, Object> corpoValido() {
@@ -252,9 +358,20 @@ class AdminEventCrudIntegrationTest {
         corpo.put("description", "Uma noite inesquecivel");
         corpo.put("venue", "Estadio Municipal");
         corpo.put("eventDate", Instant.now().plus(30, ChronoUnit.DAYS).toString());
-        corpo.put("totalTickets", 500);
-        corpo.put("price", new BigDecimal("150.00"));
+        // 25 filas de 20 lugares = 500, a mesma capacidade que estes testes usavam quando ela
+        // era um inteiro solto no corpo. Capacidade e preco nao vem mais na requisicao: sao
+        // derivados dos setores pelo servidor.
+        corpo.put("sectors", new ArrayList<>(List.of(setor("Plateia", "150.00", 25, 20))));
         return corpo;
+    }
+
+    private static Map<String, Object> setor(String nome, String preco, int filas, int lugares) {
+        Map<String, Object> setor = new LinkedHashMap<>();
+        setor.put("name", nome);
+        setor.put("price", new BigDecimal(preco));
+        setor.put("rowsCount", filas);
+        setor.put("seatsPerRow", lugares);
+        return setor;
     }
 
     private MockHttpServletRequestBuilder criar(Map<String, Object> corpo) throws Exception {
@@ -262,6 +379,14 @@ class AdminEventCrudIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(corpo));
+    }
+
+    private String publicarEObterId() throws Exception {
+        String id = criarEObterId();
+        mockMvc.perform(post("/admin/events/" + id + "/publish")
+                        .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin()))
+                .andExpect(status().isOk());
+        return id;
     }
 
     private String criarEObterId() throws Exception {

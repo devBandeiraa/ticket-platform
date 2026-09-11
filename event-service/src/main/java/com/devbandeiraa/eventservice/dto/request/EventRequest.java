@@ -1,14 +1,14 @@
 package com.devbandeiraa.eventservice.dto.request;
 
-import jakarta.validation.constraints.Digits;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Dados de criacao e de alteracao de um evento.
@@ -21,8 +21,13 @@ import java.time.Instant;
  * colateral de uma edicao. Se o status viesse aqui, uma edicao de preco poderia publicar o
  * evento sem que ninguem tivesse pedido.
  *
+ * <p>Tambem nao ha mais {@code totalTickets} nem {@code price}: os dois passaram a ser derivados
+ * dos setores — capacidade e a soma das dimensoes, preco e o menor entre eles. Aceita-los aqui
+ * permitiria que discordassem do layout, e o catalogo anunciaria uma casa que nao existe.
+ *
  * @param eventDate exigido no futuro: cadastrar um evento que ja aconteceu so pode ser engano
  *                  de digitacao, e aceita-lo colocaria no catalogo algo impossivel de vender
+ * @param sectors   a planta da casa; so pode ser alterada enquanto o evento e rascunho
  */
 public record EventRequest(
 
@@ -41,23 +46,32 @@ public record EventRequest(
         @Future(message = "A data do evento deve estar no futuro")
         Instant eventDate,
 
-        @NotNull(message = "A quantidade de ingressos e obrigatoria")
-        @Positive(message = "A quantidade de ingressos deve ser maior que zero")
-        Integer totalTickets,
+        @NotEmpty(message = "O evento precisa de ao menos um setor")
+        @Size(max = 20, message = "Um evento pode ter no maximo 20 setores")
+        @Valid
+        List<SectorRequest> sectors,
 
-        @NotNull(message = "O preco e obrigatorio")
-        @PositiveOrZero(message = "O preco nao pode ser negativo")
-        @Digits(integer = 8, fraction = 2, message = "O preco deve ter no maximo 8 inteiros e 2 decimais")
-        BigDecimal price) {
+        @Size(max = 500, message = "A URL da capa deve ter no maximo 500 caracteres")
+        @Pattern(regexp = "^https?://.+", message = "A URL da capa deve comecar com http:// ou https://")
+        String imageUrl) {
 
     /** Apara espacos em volta antes da validacao, pelo mesmo motivo do cadastro de usuario. */
     public EventRequest {
         name = aparar(name);
         description = aparar(description);
         venue = aparar(venue);
+        // Campo opcional que o formulario envia como texto vazio quando o admin o limpa.
+        // Gravar "" faria o frontend tentar carregar uma imagem de endereco vazio, em vez de
+        // cair no fundo derivado do nome que ele desenha quando nao ha capa. Vazio e ausencia,
+        // e a coluna ja sabe representar ausencia.
+        imageUrl = vazioComoNulo(aparar(imageUrl));
     }
 
     private static String aparar(String valor) {
         return valor == null ? null : valor.trim();
+    }
+
+    private static String vazioComoNulo(String valor) {
+        return valor == null || valor.isEmpty() ? null : valor;
     }
 }

@@ -63,18 +63,30 @@ export function Cartao({
   children,
   className = '',
   interativo = false,
+  semPreenchimento = false,
 }: {
   children: ReactNode
   className?: string
   /** Cartao que e um link ou um botao: ganha resposta ao passar o mouse. */
   interativo?: boolean
+  /**
+   * Remove o respiro interno para que um filho possa encostar na borda — o caso da capa, que
+   * precisa sangrar ate os cantos. Uma propriedade explicita, e nao um `p-0` no className: as
+   * duas classes teriam a mesma especificidade, e quem venceria dependeria da ordem em que o
+   * Tailwind as emitiu, nao da ordem em que foram escritas aqui.
+   */
+  semPreenchimento?: boolean
 }) {
   const resposta = interativo
     ? 'transition-all duration-200 hover:-translate-y-1 hover:border-marca/60 hover:shadow-xl hover:shadow-marca/10'
     : ''
 
+  const preenchimento = semPreenchimento ? '' : 'p-5'
+
   return (
-    <div className={`vidro rounded-xl border border-borda p-5 ${resposta} ${className}`}>
+    <div
+      className={`vidro rounded-xl border border-borda ${preenchimento} ${resposta} ${className}`}
+    >
       {children}
     </div>
   )
