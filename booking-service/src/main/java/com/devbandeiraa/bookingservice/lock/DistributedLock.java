@@ -13,7 +13,7 @@ import java.util.function.Supplier;
  * <p><strong>Nao confie nisto para correcao.</strong> Este lock e uma otimizacao: reduz a
  * contencao no banco serializando as tentativas antes que elas cheguem la. A garantia de que
  * nao se vende ingresso a mais e o {@code UPDATE} condicional em
- * {@code EventInventoryRepository}, e ela vale mesmo que este lock falhe.
+ * {@code EventSeatRepository}, e ela vale mesmo que este lock falhe.
  */
 public interface DistributedLock {
 

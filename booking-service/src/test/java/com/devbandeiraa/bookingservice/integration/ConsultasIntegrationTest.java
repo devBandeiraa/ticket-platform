@@ -6,13 +6,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.devbandeiraa.bookingservice.client.EventClient;
-import com.devbandeiraa.bookingservice.client.EventSnapshot;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
-import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
+import com.devbandeiraa.bookingservice.support.AssentosDeTeste;
+import com.devbandeiraa.bookingservice.support.PlantaDeTeste;
 import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -47,7 +48,10 @@ class ConsultasIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private EventInventoryRepository estoqueRepository;
+    private EventSeatRepository assentoRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
 
     @Autowired
     private TransactionTemplate transacao;
@@ -60,7 +64,8 @@ class ConsultasIntegrationTest {
     @BeforeEach
     void limparEstado() {
         bookingRepository.deleteAllInBatch();
-        estoqueRepository.deleteAllInBatch();
+        bookingSeatRepository.deleteAllInBatch();
+        assentoRepository.deleteAllInBatch();
         eventoId = UUID.randomUUID();
     }
 
@@ -81,11 +86,47 @@ class ConsultasIntegrationTest {
                 .andExpect(jsonPath("$.available").value(7));
     }
 
+    /**
+     * O mapa e publico, e este teste chama o endpoint DE VERDADE — sem token.
+     *
+     * <p>Na Fase 18 a documentacao ja anunciava o mapa como aberto, e a especificacao OpenAPI
+     * concordava, enquanto o {@code SecurityConfig} exigia token. Um teste que so verificasse a
+     * especificacao passaria; quem abrisse a tela levava {@code 401}. A licao: documentacao e
+     * configuracao sao duas afirmacoes distintas, e cada uma precisa ser verificada onde vive.
+     */
+    @Test
+    @DisplayName("mapa de assentos e publico: um visitante sem conta consegue ver os lugares")
+    void mapaDeAssentosDeveSerPublico() throws Exception {
+        estoqueHidratado(10);
+
+        mockMvc.perform(get("/events/" + eventoId + "/seats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventId").value(eventoId.toString()))
+                .andExpect(jsonPath("$.seats.length()").value(10))
+                .andExpect(jsonPath("$.seats[0].status").value("FREE"))
+                .andExpect(jsonPath("$.seats[0].label").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("o mapa mostra como ocupado o lugar que ja foi reservado")
+    void mapaDeveMarcarOcupados() throws Exception {
+        estoqueHidratado(10);
+        reservaPendente(3);
+
+        mockMvc.perform(get("/events/" + eventoId + "/seats"))
+                .andExpect(status().isOk())
+                // Tres lugares saem de FREE: e o que a tela usa para desabilita-los.
+                .andExpect(jsonPath("$.seats[?(@.status == 'RESERVED')]")
+                        .value(org.hamcrest.Matchers.hasSize(3)))
+                .andExpect(jsonPath("$.seats[?(@.status == 'FREE')]")
+                        .value(org.hamcrest.Matchers.hasSize(7)));
+    }
+
     @Test
     @DisplayName("evento nunca visto e hidratado na primeira consulta de disponibilidade")
     void deveHidratarNaPrimeiraConsulta() throws Exception {
         when(eventClient.buscarPublicado(eventoId))
-                .thenReturn(new EventSnapshot(eventoId, 42, PRECO));
+                .thenReturn(PlantaDeTeste.eventoCom(eventoId, 42, PRECO));
 
         mockMvc.perform(get("/events/" + eventoId + "/availability"))
                 .andExpect(status().isOk())
@@ -172,15 +213,23 @@ class ConsultasIntegrationTest {
     // ---------- apoio ----------
 
     private void estoqueHidratado(int capacidade) {
-        estoqueRepository.saveAndFlush(EventInventory.hidratado(eventoId, capacidade, PRECO));
+        AssentosDeTeste.criarCasa(assentoRepository, eventoId, capacidade, PRECO);
     }
 
     private Booking reservaPendente(int quantidade) {
         return transacao.execute(status -> {
-            estoqueRepository.reservar(eventoId, quantidade);
-            return bookingRepository.saveAndFlush(Booking.pendente(
-                    eventoId, UUID.randomUUID(), quantidade, PRECO,
+            Booking reserva = bookingRepository.saveAndFlush(Booking.pendente(
+                    eventoId, UUID.randomUUID(), quantidade, totalDe(quantidade),
                     Instant.now().plus(10, ChronoUnit.MINUTES), "chave-" + UUID.randomUUID()));
+
+            AssentosDeTeste.ocuparPara(assentoRepository, eventoId, quantidade, reserva.getId());
+            return reserva;
         });
     }
+
+    /** O total da reserva e a soma dos lugares — nao mais preco unitario vezes quantidade. */
+    private static BigDecimal totalDe(int quantidade) {
+        return PRECO.multiply(BigDecimal.valueOf(quantidade));
+    }
+
 }

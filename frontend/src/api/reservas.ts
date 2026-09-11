@@ -9,7 +9,37 @@ import type { Pagina, Reserva, StatusDaReserva } from './tipos'
  * como um clique so — exatamente o que o cabecalho existe para impedir. Quem chama e dono da
  * tentativa, e portanto da chave.
  */
+/**
+ * Reserva lugares escolhidos.
+ *
+ * O servidor aceita tambem um pedido so com `quantity`, escolhendo os mais baratos livres. A
+ * tela nao usa esse caminho: havendo mapa, deixar o servidor escolher esconderia do usuario a
+ * unica decisao que ele veio tomar.
+ */
 export function reservar(
+  eventId: string,
+  seatIds: string[],
+  chaveDeIdempotencia: string,
+): Promise<Reserva> {
+  return requisitar('/bookings', {
+    metodo: 'POST',
+    corpo: { eventId, seatIds },
+    cabecalhos: { 'Idempotency-Key': chaveDeIdempotencia },
+  })
+}
+
+/**
+ * Reserva N lugares quaisquer — o "melhor disponivel" que o servidor escolhe.
+ *
+ * Usado pela demo de concorrencia, e so por ela. Ali o ponto e justamente que N compradores
+ * anonimos disputem o que houver: escolher lugares especificos transformaria a demo numa
+ * disputa por um assento so, que e outro experimento — e um que o teste de 200 threads do
+ * booking-service ja faz melhor.
+ *
+ * Na tela de compra este caminho nao aparece: havendo mapa, deixar o servidor escolher
+ * esconderia do usuario a unica decisao que ele veio tomar.
+ */
+export function reservarMelhorDisponivel(
   eventId: string,
   quantity: number,
   chaveDeIdempotencia: string,

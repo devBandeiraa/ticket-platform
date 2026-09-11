@@ -65,6 +65,9 @@ export function Vazio({ children }: { children: ReactNode }) {
  */
 const MENSAGENS: Record<string, string> = {
   SOLD_OUT: 'Os ingressos acabaram enquanto voce decidia.',
+  // Distinto de SOLD_OUT de proposito: aqui escolher outro lugar resolve, e o conselho
+  // que a tela da precisa ser diferente.
+  SEATS_TAKEN: 'Alguem levou um dos lugares que voce escolheu. O mapa foi atualizado.',
   LOCK_TIMEOUT: 'Muita gente reservando este evento agora. Tente de novo em instantes.',
   BOOKING_EXPIRED: 'O prazo de pagamento desta reserva venceu.',
   BOOKING_CANCELLED: 'Esta reserva ja foi cancelada.',

@@ -12,15 +12,17 @@ import com.devbandeiraa.bookingservice.client.Autorizacao;
 import com.devbandeiraa.bookingservice.client.EventClient;
 import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
-import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.domain.OutboxMessage;
 import com.devbandeiraa.bookingservice.domain.OutboxStatus;
 import com.devbandeiraa.bookingservice.messaging.BookingConfirmedEvent;
 import com.devbandeiraa.bookingservice.messaging.OutboxPublisher;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.bookingservice.repository.OutboxRepository;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
+import com.devbandeiraa.bookingservice.support.AssentosDeTeste;
+import com.devbandeiraa.bookingservice.support.PlantaDeTeste;
 import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -67,7 +69,10 @@ class OutboxIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private EventInventoryRepository estoqueRepository;
+    private EventSeatRepository assentoRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
 
     @Autowired
     private OutboxRepository outboxRepository;
@@ -100,7 +105,8 @@ class OutboxIntegrationTest {
     void limparEstado() {
         outboxRepository.deleteAllInBatch();
         bookingRepository.deleteAllInBatch();
-        estoqueRepository.deleteAllInBatch();
+        bookingSeatRepository.deleteAllInBatch();
+        assentoRepository.deleteAllInBatch();
 
         // Provedor sempre autorizando: o desfecho da cobranca nao e o objeto destes testes.
         when(pagamentoClient.autorizar(any(UUID.class), any(BigDecimal.class)))
@@ -110,7 +116,7 @@ class OutboxIntegrationTest {
         eventoId = UUID.randomUUID();
         usuarioId = UUID.randomUUID();
         tokenDoUsuario = GeradorDeToken.deUsuario(usuarioId);
-        estoqueRepository.saveAndFlush(EventInventory.hidratado(eventoId, 10, PRECO));
+        AssentosDeTeste.criarCasa(assentoRepository, eventoId, 10, PRECO);
     }
 
     // ---------- gravacao ----------
@@ -285,9 +291,12 @@ class OutboxIntegrationTest {
 
     private Booking reservaPendente(int quantidade, Instant expiraEm) {
         return transacao.execute(status -> {
-            estoqueRepository.reservar(eventoId, quantidade);
-            return bookingRepository.saveAndFlush(Booking.pendente(
-                    eventoId, usuarioId, quantidade, PRECO, expiraEm, "chave-" + UUID.randomUUID()));
+            Booking reserva = bookingRepository.saveAndFlush(Booking.pendente(
+                    eventoId, usuarioId, quantidade, totalDe(quantidade), expiraEm,
+                    "chave-" + UUID.randomUUID()));
+
+            AssentosDeTeste.ocuparPara(assentoRepository, eventoId, quantidade, reserva.getId());
+            return reserva;
         });
     }
 
@@ -295,4 +304,10 @@ class OutboxIntegrationTest {
         return post("/bookings/" + id + "/pay")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDoUsuario);
     }
+
+    /** O total da reserva e a soma dos lugares — nao mais preco unitario vezes quantidade. */
+    private static BigDecimal totalDe(int quantidade) {
+        return PRECO.multiply(BigDecimal.valueOf(quantidade));
+    }
+
 }

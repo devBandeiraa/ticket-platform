@@ -74,7 +74,12 @@ export function Catalogo() {
         </div>
 
         <form onSubmit={pesquisar} className="flex gap-2">
+          {/* aria-label, e nao so o placeholder: o placeholder some ao digitar e nao e nome
+              acessivel — um leitor de tela anunciaria apenas "caixa de texto". Como o rotulo
+              visivel seria redundante ao lado do botao "Buscar", o nome vai no atributo. */}
           <input
+            type="search"
+            aria-label="Buscar evento por nome ou local"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome ou local"

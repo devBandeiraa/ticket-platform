@@ -68,8 +68,8 @@ public class EventClient {
                 throw new EventoNaoDisponivelException(eventId);
             }
 
-            log.debug("evento {} obtido do event-service: capacidade={} preco={}",
-                    eventId, evento.totalTickets(), evento.price());
+            log.debug("evento {} obtido do event-service: {} setores",
+                    eventId, evento.sectors().size());
 
             return evento;
 

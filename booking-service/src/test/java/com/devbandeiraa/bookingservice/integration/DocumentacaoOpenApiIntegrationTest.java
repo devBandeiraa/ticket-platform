@@ -87,6 +87,12 @@ class DocumentacaoOpenApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/events/{eventId}/availability'].get.security")
                         .doesNotExist())
+                // O mapa e publico pelo mesmo motivo: escolher o lugar faz parte de decidir a
+                // compra, e exigir conta antes disso esconderia o que convence. Na Fase 18 a
+                // documentacao dizia isso enquanto o SecurityConfig exigia token — a tela levava
+                // 401 num endpoint anunciado como aberto.
+                .andExpect(jsonPath("$.paths['/events/{eventId}/seats'].get.security")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.paths['/bookings'].post.security[0]['bearer-jwt']")
                         .exists());
     }
@@ -118,6 +124,11 @@ class DocumentacaoOpenApiIntegrationTest {
         mockMvc.perform(get(CAMINHO))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/bookings'].post.responses['409'].description")
-                        .value(org.hamcrest.Matchers.containsString("SOLD_OUT")));
+                        .value(org.hamcrest.Matchers.containsString("SOLD_OUT")))
+                // SEATS_TAKEN e SOLD_OUT dizem coisas opostas a quem esta na tela — "tente
+                // outro lugar" contra "acabou". Documentar so um deixaria o cliente sem saber
+                // que precisa distinguir, e o conselho sairia errado em metade das vezes.
+                .andExpect(jsonPath("$.paths['/bookings'].post.responses['409'].description")
+                        .value(org.hamcrest.Matchers.containsString("SEATS_TAKEN")));
     }
 }

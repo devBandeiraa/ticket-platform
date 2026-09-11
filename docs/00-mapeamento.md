@@ -167,6 +167,24 @@ CHECK (reserved_tickets >= 0 AND reserved_tickets <= total_tickets)
 Essa constraint é a **última rede de segurança** contra overselling: mesmo que toda a lógica
 de aplicação falhe, o banco recusa o estado inválido.
 
+> **Removida na Fase 17.** A tabela `event_inventory` deixou de existir junto com o desenho por
+> quantidade. Cada lugar passou a ser uma linha em **`event_seats`** — evento, setor, fila,
+> número, preço, estado (`FREE` / `RESERVED` / `SOLD`) e quem o segura agora.
+>
+> Com isso a invariante **muda de forma, e fica mais forte**. Antes era preciso escrever
+> `CHECK (reserved <= total)`, porque nada na estrutura impedia o contador de passar do teto.
+> Agora existe exatamente uma linha para "Plateia A12", e ela só sai de `FREE` uma vez: vender o
+> mesmo lugar duas vezes exigiria duas linhas para o mesmo lugar, e a unicidade da chave natural
+> não permite. A garantia deixou de ser uma regra escrita e passou a ser estrutural.
+>
+> Um contador de reservados ao lado dos assentos seriam duas fontes de verdade para "quantos
+> restam", e duas fontes divergem — por isso a tabela saiu inteira, e disponibilidade virou uma
+> contagem.
+>
+> **`booking_seats`** guarda o que cada reserva pegou, com setor, fila, número e preço copiados.
+> É registro permanente, e não estado: cancelada a reserva, o assento volta a ficar livre e perde
+> o ponteiro para ela, mas o usuário ainda precisa ver quais lugares eram os dele.
+
 **`bookings`**
 
 | Campo | Tipo | Observação |
@@ -175,7 +193,7 @@ de aplicação falhe, o banco recusa o estado inválido.
 | `event_id` | UUID | sem FK |
 | `user_id` | UUID | sem FK, extraído do JWT |
 | `quantity` | int | `> 0` |
-| `unit_price` / `total_price` | numeric(10,2) | **snapshot** do preço no ato da reserva |
+| ~~`unit_price`~~ / `total_price` | numeric(10,2) | **snapshot** do preço no ato da reserva. `unit_price` **removido na Fase 17**: uma reserva de Plateia a 180 e Galeria a 70 não tem preço unitário, e a média seria um valor que nenhum ingresso custou. O preço passou a ser por lugar, em `booking_seats`; `total_price` é a soma |
 | `status` | enum `PENDING` \| `CONFIRMED` \| `CANCELLED` \| `EXPIRED` | |
 | `expires_at` | timestamptz | preenchido apenas enquanto `PENDING` |
 | `paid_at` | timestamptz | null até o pagamento simulado |
@@ -474,6 +492,13 @@ de escrita, que é necessariamente diferente nos dois modelos.
 O `booking-service` mantém `event_inventory` no próprio banco em vez de perguntar ao
 `event-service` a cada reserva.
 
+> **Reformulado na Fase 17.** O argumento continua valendo palavra por palavra — a decisão
+> "ainda cabe?" precisa ser atômica com a gravação, e só é atômica no mesmo banco. O que mudou é
+> *o que* mora aqui: em vez de um contador, uma linha por lugar em `event_seats`. O passo ② passou
+> a ser "os assentos deste evento já existem?", e o passo ④, um `UPDATE` que exige
+> `status = FREE` para cada lugar pedido. O restante do fluxo — lock fora da transação, liberação
+> sem lock, transição condicional — é idêntico.
+
 > A pergunta "ainda cabe mais um ingresso?" precisa ser **atômica com a gravação da reserva**.
 > Se o estoque vive no banco do `event-service` e a reserva no do `booking-service`, abre-se
 > uma janela entre "consultei" e "gravei" que nenhum lock fecha sem transação distribuída.
@@ -727,6 +752,20 @@ compose.
 | 52 | `BigDecimal.equals` leva a escala em conta, então `150.00` vindo do banco e `150.0` vindo do JSON seriam "diferentes" — e editar apenas a descrição de um evento publicado levaria um `409` por um layout que ninguém mudou, já que o mesmo record carrega dados e planta | Média | **Evitado na Fase 16:** a comparação de layout usa `compareTo`, que compara valor. Coberto por teste que reenvia o preço com outra escala |
 | 53 | Alterar a planta de um evento já publicado mudaria a casa por baixo de quem já comprou: um lugar vendido poderia deixar de existir, ou a capacidade cair abaixo do já vendido — e o `booking-service` já copiou a capacidade | **Alta** | **Resolvido na Fase 16:** o layout só muda enquanto o evento é rascunho, com `409 EVENT_LAYOUT_LOCKED`. Nome, data, descrição e capa seguem editáveis, e a distinção importa para o admin saber o que ainda pode corrigir |
 | 54 | Dois setores com o mesmo nome tornariam a chave natural do assento ambígua — "Plateia A3" apontaria para dois lugares — e chegariam ao banco como violação de constraint, virando um `500` que fala de índice sobre um dado recém-digitado | Média | **Resolvido na Fase 16:** o domínio recusa antes, com `400 INVALID_LAYOUT`. A constraint permanece como última rede |
+| 55 | Limpar a colecao de assentos e recriar viola a unicidade da chave natural, do mesmo modo que os setores — e aqui o volume torna o erro mais caro | Média | **Evitado na Fase 17:** a tomada nunca recria linhas. Assento e criado uma vez, na hidratacao, e dali em diante so muda de estado |
+| 56 | Reserva parcial: pedir quatro lugares e receber dois, em posicoes separadas | **Alta** | **Resolvido na Fase 17:** o `UPDATE` toma o conjunto inteiro numa instrucao, e o chamador compara as linhas afetadas com o que pediu. Menos que o pedido desfaz a transacao inteira. Coberto por teste com conjuntos sobrepostos disputados em paralelo |
+| 57 | Selecao "melhor disponivel" le a lista de livres e depois grava — a mesma corrida que o projeto existe para resolver, reintroduzida pela porta dos fundos | **Alta** | **Resolvido na Fase 17:** `SELECT ... FOR UPDATE SKIP LOCKED`. Sem o `SKIP LOCKED`, compradores simultaneos enfileirariam sobre as mesmas linhas para descobrir no fim que os lugares sairam; com ele, cada um pula o que esta travado e pega os seguintes — vinte pedidos de um lugar num evento com vinte livres saem todos atendidos, em paralelo |
+| 58 | `ORDER BY id` sobre UUID aleatorio faz "os mais baratos" virarem lugares sorteados pela casa: quem pede tres ingressos recebe A2, A7 e A9, separados sem razao | Baixa | **Encontrado na Fase 17** por um teste que esperava A1 e recebeu A2. A ordem passou a ser por preco e depois por posicao — setor, fila, numero |
+| 59 | Um contador de reservados ao lado de uma linha por assento seriam duas fontes de verdade para "quantos restam", e duas fontes divergem | Média | **Evitado na Fase 17:** `event_inventory` foi removida. Disponibilidade e uma contagem sobre os proprios assentos, por definicao consistente com o que foi vendido |
+| 60 | Cancelamento tardio devolveria ao pool um lugar ja pago | Média | **Resolvido na Fase 17:** liberar exige `status = RESERVED` no `WHERE`. Um lugar `SOLD` nao volta a ficar livre por caminho automatico nenhum |
+| 61 | Assento marcado como ocupado sem dono, ou livre com dono — estados contraditorios que um caminho futuro poderia gravar ao escrever so um dos dois campos | Baixa | **Resolvido na Fase 17:** `CHECK ((status = 'FREE') = (booking_id IS NULL))`. A aplicacao ja escreve os dois juntos; a constraint e para o codigo que ainda nao existe |
+| 62 | Fixture de teste que ocupa lugares com um id de reserva qualquer e depois cria a reserva com outro id monta um estado que a aplicacao nunca produz — e o cancelamento nao libera nada | Média | **Encontrado na Fase 17:** cinco testes do ciclo de vida falharam de uma vez. Os assentos passaram a ser tomados em nome da reserva de verdade. Vale o registro: o defeito estava no teste, e ele so apareceu porque o modelo novo tornou a ligacao explicita |
+| 63 | Mapa com milhares de botoes torna a tela intransitavel por teclado: passar da Plateia ao Balcao levaria mil e quinhentas tabulacoes | Média | **Resolvido na Fase 18:** *roving tabindex*. Um unico assento por setor participa da ordem de tabulacao, e as setas movem o foco dentro da grade — o padrao de widget de grade, o mesmo que uma planilha usa |
+| 64 | Guardar o objeto do assento selecionado deixa a tela com uma copia que envelhece: o lugar e vendido, e a interface segue oferecendo-o ate o clique em "Reservar" falhar | Média | **Resolvido na Fase 18:** a tela guarda apenas a *intencao* — os ids clicados — e recalcula a selecao a cada mapa recebido. Torna impossivel exibir como escolhido um assento que o servidor ja recusaria. Efeito colateral bem-vindo: expirada a reserva de outro, o lugar reaparece selecionado |
+| 65 | Corrigir a selecao dentro de um efeito que depende dela mesma produz renderizacao em cascata | Baixa | **Encontrado na Fase 18** pelo lint (`set-state-in-effect`). Convergia, mas era estado derivado guardado como estado proprio. Passou a ser derivado no render, numa funcao pura testada a parte |
+| 66 | Cor como unico diferenciador entre lugar livre e ocupado — que e justamente a distincao que decide a compra | Média | **Resolvido na Fase 18:** o ocupado ganha risco diagonal alem do contraste, e o `aria-label` de cada assento diz a situacao por extenso. Legivel tambem em escala de cinza |
+| 67 | Campo de busca com apenas `placeholder`: ele some ao digitar e nao e nome acessivel, entao um leitor de tela anuncia so "caixa de texto" | Baixa | **Encontrado na Fase 18** ao auditar a acessibilidade. Ganhou `aria-label`. Os demais campos ja estavam corretos — o `Campo` compartilhado envolve o input num `label` |
+| 68 | `@testing-library/jest-dom` declarado no `package.json` e nunca importado: dependencia nao usada, e asserções de acessibilidade feitas na mao comparando atributos `aria-*` | Baixa | **Encontrado na Fase 18:** registrado em `setupFiles`. `toHaveAccessibleName` verifica o que o leitor de tela anuncia, em vez da implementacao |
 
 ---
 
@@ -799,3 +838,18 @@ compose.
 | Persistência dos assentos *(Fase 16)* | Nenhuma: só os setores | Guardar as 1500 linhas que `filas × lugares` gera seria guardar o resultado de uma multiplicação — e guardá-lo em **dois** bancos, já que o `booking-service` precisa de uma linha por assento de qualquer forma, por ser quem conhece o estado de cada lugar. A identidade vira a chave natural, sem UUID a manter em concordância entre os dois lados |
 | `total_tickets` e `price` no evento *(Fase 16)* | Mantidos, agora derivados | Lidos dos setores, a listagem pública faria nove consultas a mais por página. Mantidos, a fase entrou sem tocar no `booking-service`, que segue lendo os dois sem saber que setores existem |
 | Rótulo da fila *(Fase 16)* | Calculado no domínio e devolvido pronto na API | O rótulo entra na chave natural do assento: se cliente e servidor divergirem na nomeação, passam a falar de lugares diferentes com o mesmo nome |
+| Estado dos assentos *(Fase 17)* | Uma linha por lugar no booking-service | A pergunta "este assento esta livre?" precisa ser atomica com a gravacao da reserva, e so e atomica no mesmo banco. Mesmo argumento que justificava o contador local antes de existirem assentos |
+| Invariante contra venda dupla *(Fase 17)* | Estrutural, e nao mais uma `CHECK` | Com contador era preciso escrever `reserved <= total`, porque nada na estrutura impedia passar do teto. Com uma linha por lugar, vender o mesmo assento duas vezes exigiria duas linhas para o mesmo assento — e a unicidade da chave natural nao permite |
+| `event_inventory` *(Fase 17)* | Removida | Um contador ao lado dos assentos seriam duas fontes de verdade para a mesma pergunta. Disponibilidade virou contagem |
+| Formas de escolher lugar *(Fase 17)* | Duas: explicita e "melhor disponivel" | As duas convergem no mesmo `UPDATE` condicional — sao dois modos de escolher, e nao duas logicas de correcao. Manter o "melhor disponivel" tambem e o que permitiu a fase entrar sem quebrar a tela, que so passa a escolher lugar no estagio do mapa |
+| Selecao automatica *(Fase 17)* | `FOR UPDATE SKIP LOCKED` | Deixa compradores simultaneos pegarem lugares diferentes em paralelo, em vez de enfileirarem sobre a mesma lista. E uma demonstracao melhor que a do contador, onde todos disputavam a mesma linha por construcao |
+| Reserva parcial *(Fase 17)* | Recusada por inteiro | Quem escolheu quatro assentos juntos nao quer dois deles, em lugares separados. O `UPDATE` unico e a comparacao de linhas afetadas dao isso de graca |
+| `unit_price` na reserva *(Fase 17)* | Removido | Uma reserva de Plateia a 180 e Galeria a 70 nao tem preco unitario: a media seria 125, valor que nenhum ingresso custou. Cada lugar guarda o que custou, e o total e a soma |
+| Historico dos lugares *(Fase 17)* | Tabela propria, alem do estado | Cancelada a reserva, o assento volta a ficar livre e perde o ponteiro para ela — mas o usuario ainda precisa ver quais lugares eram os dele. Guardar so o estado apagaria a historia junto |
+| Gravacao dos assentos na hidratacao *(Fase 17)* | Lote por JDBC | O `saveAll` do Spring Data percorre entidade por entidade e as mantem no contexto de persistencia; para tres mil linhas que nao serao lidas em seguida, e custo sem contrapartida |
+| Codigo de erro do assento tomado *(Fase 17)* | `SEATS_TAKEN`, distinto de `SOLD_OUT` | "Esgotado" diz que nao adianta tentar; "estes lugares sairam" diz que escolher outros resolve. Com um codigo unico a tela daria o conselho errado em metade das vezes |
+| Direcao visual do mapa *(Fase 18)* | Casa de espetaculo, e nao grade tabular | Palco no topo e setores empilhados do mais proximo ao mais distante fazem a pessoa entender ONDE vai sentar antes de olhar o preco. Num mapa puramente tabular, escolher lugar vira preencher formulario. O custo e mais CSS e rolagem horizontal no celular — aceito, porque encolher o assento ate caber deixaria o alvo de toque menor que um dedo |
+| Navegacao por teclado no mapa *(Fase 18)* | Roving tabindex | Todos os assentos na ordem de tabulacao tornariam a tela intransitavel sem mouse. Um por setor, e as setas movem o foco |
+| Estado da selecao *(Fase 18)* | Intencao guardada, selecao derivada | A tela guarda os ids clicados e recalcula do mapa. E o que impede exibir como escolhido um lugar que o servidor recusaria, e o que elimina a correcao em efeito |
+| Assento perdido no checkout *(Fase 18)* | Avisa, desmarca so os perdidos e segue | Quem escolheu quatro lugares e perdeu um nao deve recomecar: os outros tres voltariam ao pool e poderiam sair enquanto ele escolhe de novo. O `409 SEATS_TAKEN` nomeia os disputados, mas a desmarcacao vem do mapa recarregado — analisar prosa de mensagem de erro seria fragil |
+| Caminho "melhor disponivel" na tela *(Fase 18)* | So na demo de concorrencia | Havendo mapa, deixar o servidor escolher esconderia do usuario a unica decisao que ele veio tomar. Na demo e o contrario: o ponto e N compradores anonimos disputarem o que houver |

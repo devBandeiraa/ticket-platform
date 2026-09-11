@@ -3,8 +3,8 @@ package com.devbandeiraa.bookingservice.service;
 import com.devbandeiraa.bookingservice.client.Autorizacao;
 import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
+import com.devbandeiraa.bookingservice.domain.BookingSeat;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
-import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.dto.request.CreateBookingRequest;
 import com.devbandeiraa.bookingservice.dto.response.BookingResponse;
 import com.devbandeiraa.bookingservice.dto.response.PaginaResponse;
@@ -13,15 +13,21 @@ import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.exception.TransicaoDeReservaInvalidaException;
 import com.devbandeiraa.bookingservice.lock.DistributedLock;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSpecifications;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.shared.security.AuthenticatedUser;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -46,7 +52,8 @@ public class BookingService {
     private static final String PREFIXO_DA_CHAVE_DE_LOCK = "lock:event:";
 
     private final BookingRepository bookingRepository;
-    private final EventInventoryRepository estoqueRepository;
+    private final BookingSeatRepository bookingSeatRepository;
+    private final EventSeatRepository assentoRepository;
     private final EstoqueService estoqueService;
     private final ReservaTransacional reservaTransacional;
     private final ConfirmacaoTransacional confirmacaoTransacional;
@@ -55,7 +62,8 @@ public class BookingService {
     private final ReservaProperties propriedades;
 
     public BookingService(BookingRepository bookingRepository,
-                          EventInventoryRepository estoqueRepository,
+                          BookingSeatRepository bookingSeatRepository,
+                          EventSeatRepository assentoRepository,
                           EstoqueService estoqueService,
                           ReservaTransacional reservaTransacional,
                           ConfirmacaoTransacional confirmacaoTransacional,
@@ -63,7 +71,8 @@ public class BookingService {
                           DistributedLock lock,
                           ReservaProperties propriedades) {
         this.bookingRepository = bookingRepository;
-        this.estoqueRepository = estoqueRepository;
+        this.bookingSeatRepository = bookingSeatRepository;
+        this.assentoRepository = assentoRepository;
         this.estoqueService = estoqueService;
         this.reservaTransacional = reservaTransacional;
         this.confirmacaoTransacional = confirmacaoTransacional;
@@ -100,28 +109,36 @@ public class BookingService {
         if (jaReservada.isPresent()) {
             log.debug("requisicao repetida com a chave '{}': devolvendo a reserva {}",
                     chaveDeIdempotencia, jaReservada.get().getId());
-            return ResultadoDaReserva.repetida(BookingResponse.de(jaReservada.get()));
+            return ResultadoDaReserva.repetida(comAssentos(jaReservada.get()));
         }
 
-        EventInventory estoque = estoqueService.garantirHidratado(requisicao.eventId());
+        estoqueService.garantirHidratado(requisicao.eventId());
         Instant expiraEm = Instant.now().plus(propriedades.ttl());
 
         try {
+            // As duas formas de escolher terminam no mesmo UPDATE condicional; o que muda e
+            // apenas quem decide os lugares. Ver ReservaTransacional.
             Booking reserva = lock.executarComLock(
                     PREFIXO_DA_CHAVE_DE_LOCK + requisicao.eventId(),
-                    () -> reservaTransacional.registrar(
-                            requisicao.eventId(),
-                            usuarioId,
-                            requisicao.quantity(),
-                            estoque.getPrice(),
-                            expiraEm,
-                            chaveDeIdempotencia));
+                    () -> requisicao.temEscolhaExplicita()
+                            ? reservaTransacional.registrarEscolhidos(
+                                    requisicao.eventId(),
+                                    usuarioId,
+                                    requisicao.assentosDistintos(),
+                                    expiraEm,
+                                    chaveDeIdempotencia)
+                            : reservaTransacional.registrarMelhoresDisponiveis(
+                                    requisicao.eventId(),
+                                    usuarioId,
+                                    requisicao.quantity(),
+                                    expiraEm,
+                                    chaveDeIdempotencia));
 
-            log.info("reserva criada: id={} evento={} usuario={} quantidade={} expira={}",
+            log.info("reserva criada: id={} evento={} usuario={} lugares={} total={} expira={}",
                     reserva.getId(), reserva.getEventId(), usuarioId,
-                    reserva.getQuantity(), reserva.getExpiresAt());
+                    reserva.getQuantity(), reserva.getTotalPrice(), reserva.getExpiresAt());
 
-            return ResultadoDaReserva.criada(BookingResponse.de(reserva));
+            return ResultadoDaReserva.criada(comAssentos(reserva));
 
         } catch (DataIntegrityViolationException chaveRepetidaEmParalelo) {
             // A transacao ja fez rollback, devolvendo o estoque que havia tomado. Resta apenas
@@ -131,7 +148,7 @@ public class BookingService {
                     .map(reserva -> {
                         log.debug("colisao de idempotencia na chave '{}': devolvendo a reserva {}",
                                 chaveDeIdempotencia, reserva.getId());
-                        return ResultadoDaReserva.repetida(BookingResponse.de(reserva));
+                        return ResultadoDaReserva.repetida(comAssentos(reserva));
                     })
                     // Se nao ha reserva com esta chave, a violacao foi de outra constraint e nao
                     // deve ser confundida com idempotencia.
@@ -148,14 +165,13 @@ public class BookingService {
      */
     @Transactional(readOnly = true)
     public BookingResponse buscar(UUID id, AuthenticatedUser solicitante) {
-        return BookingResponse.de(carregarVisivelPara(id, solicitante));
+        return comAssentos(carregarVisivelPara(id, solicitante));
     }
 
     /** Reservas do usuario autenticado, da mais recente para a mais antiga. */
     @Transactional(readOnly = true)
     public PaginaResponse<BookingResponse> listarDoUsuario(UUID usuarioId, Pageable pageable) {
-        return PaginaResponse.de(
-                bookingRepository.findByUserId(usuarioId, pageable), BookingResponse::de);
+        return paginaComAssentos(bookingRepository.findByUserId(usuarioId, pageable));
     }
 
     /** Listagem administrativa, com filtros opcionais que se combinam. */
@@ -171,7 +187,7 @@ public class BookingService {
             filtro = filtro.and(BookingSpecifications.comStatus(status));
         }
 
-        return PaginaResponse.de(bookingRepository.findAll(filtro, pageable), BookingResponse::de);
+        return paginaComAssentos(bookingRepository.findAll(filtro, pageable));
     }
 
     // ---------- transicoes de estado ----------
@@ -209,7 +225,7 @@ public class BookingService {
             // Duplo clique no botao de pagar. Devolver a reserva sem chamar o provedor evita uma
             // ida a rede que o provedor descartaria de todo modo pela chave de idempotencia.
             log.debug("pagamento repetido da reserva {}: ja estava confirmada", id);
-            return BookingResponse.de(reserva);
+            return comAssentos(reserva);
         }
 
         if (!reserva.estaPendente()) {
@@ -245,7 +261,7 @@ public class BookingService {
         // deixando uma reserva confirmada e sem pagamento.
         if (atual.getStatus() == BookingStatus.CONFIRMED) {
             log.debug("reserva {} confirmada por uma requisicao concorrente; nada a estornar", id);
-            return BookingResponse.de(atual);
+            return comAssentos(atual);
         }
 
         log.warn("reserva {} nao pode mais ser confirmada: estornando o comprovante {}",
@@ -272,8 +288,8 @@ public class BookingService {
             return;
         }
 
-        estoqueRepository.devolver(reserva.getEventId(), reserva.getQuantity());
-        log.info("reserva cancelada: id={} evento={} quantidade={} (estoque devolvido)",
+        assentoRepository.liberar(id);
+        log.info("reserva cancelada: id={} evento={} lugares={} (assentos liberados)",
                 id, reserva.getEventId(), reserva.getQuantity());
     }
 
@@ -295,8 +311,8 @@ public class BookingService {
             return false;
         }
 
-        estoqueRepository.devolver(reserva.getEventId(), reserva.getQuantity());
-        log.info("reserva expirada: id={} evento={} quantidade={} (estoque devolvido)",
+        assentoRepository.liberar(reserva.getId());
+        log.info("reserva expirada: id={} evento={} lugares={} (assentos liberados)",
                 reserva.getId(), reserva.getEventId(), reserva.getQuantity());
 
         return true;
@@ -316,7 +332,7 @@ public class BookingService {
 
         if (atual.getStatus() == BookingStatus.CONFIRMED) {
             log.debug("pagamento repetido da reserva {}: ja estava confirmada", id);
-            return BookingResponse.de(atual);
+            return comAssentos(atual);
         }
 
         throw switch (atual.getStatus()) {
@@ -346,6 +362,46 @@ public class BookingService {
             default -> new TransicaoDeReservaInvalidaException(
                     id, "BOOKING_EXPIRED", "a reserva ja havia expirado");
         };
+    }
+
+    /** Uma reserva com os lugares que ela pegou. */
+    private BookingResponse comAssentos(Booking reserva) {
+        return BookingResponse.de(reserva, bookingSeatRepository
+                .findByIdBookingIdOrderBySectorNameAscRowLabelAscSeatNumberAsc(reserva.getId()));
+    }
+
+    /**
+     * Uma pagina de reservas, com os lugares de todas carregados de uma vez.
+     *
+     * <p>Duas consultas no total, e nao uma por linha. Buscar os assentos reserva a reserva
+     * seria o N+1 classico: uma tela de vinte reservas viraria vinte e uma idas ao banco, e o
+     * custo cresceria junto com o tamanho da pagina sem que nada na tela mudasse.
+     */
+    private PaginaResponse<BookingResponse> paginaComAssentos(Page<Booking> pagina) {
+        List<UUID> ids = pagina.getContent().stream().map(Booking::getId).toList();
+
+        Map<UUID, List<BookingSeat>> porReserva = ids.isEmpty()
+                ? Map.of()
+                : bookingSeatRepository.findByIdBookingIdIn(ids).stream()
+                        .collect(Collectors.groupingBy(BookingSeat::getBookingId));
+
+        return PaginaResponse.de(pagina, reserva -> BookingResponse.de(
+                reserva, ordenados(porReserva.getOrDefault(reserva.getId(), List.of()))));
+    }
+
+    /**
+     * Ordena os lugares como se leem num ingresso.
+     *
+     * <p>A ordenacao acontece aqui, e nao no banco: a consulta em lote traz os assentos de
+     * varias reservas de uma vez, e um {@code ORDER BY} nela ordenaria o conjunto inteiro, nao
+     * cada reserva por si.
+     */
+    private static List<BookingSeat> ordenados(List<BookingSeat> assentos) {
+        return assentos.stream()
+                .sorted(Comparator.comparing(BookingSeat::getSectorName)
+                        .thenComparing(BookingSeat::getRowLabel)
+                        .thenComparingInt(BookingSeat::getSeatNumber))
+                .toList();
     }
 
     /** Um admin enxerga qualquer reserva; um usuario comum, apenas as suas. */

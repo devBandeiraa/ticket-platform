@@ -43,11 +43,15 @@ public class SecurityConfig {
                         // que remove os endpoints em vez de apenas protege-los.
                         .requestMatchers("/bookings/v3/api-docs/**", "/swagger-ui/**",
                                 "/swagger-ui.html").permitAll()
-                        // Disponibilidade e publica, como o catalogo: quem ainda nao tem conta
-                        // precisa ver se restam ingressos antes de decidir criar uma. Restrito
-                        // a GET — nao existe escrita sob este caminho, e liberar o verbo abriria
-                        // a porta caso passasse a existir.
+                        // Disponibilidade e mapa de assentos sao publicos, como o catalogo: quem
+                        // ainda nao tem conta precisa ver se restam lugares — e quais — antes de
+                        // decidir criar uma. Exigir login para ver o mapa esconderia justamente o
+                        // que convence alguem a se cadastrar.
+                        //
+                        // Restritos a GET: nao existe escrita sob estes caminhos, e liberar o
+                        // verbo abriria a porta caso passasse a existir.
                         .requestMatchers(HttpMethod.GET, "/events/*/availability").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/events/*/seats").permitAll()
                         // Regra unica para toda a administracao: um endpoint novo sob este
                         // prefixo ja nasce protegido, sem depender de anotacao por metodo.
                         .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())

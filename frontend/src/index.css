@@ -108,3 +108,35 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+  Assento ocupado.
+
+  Cor sozinha nao distingue estado para quem nao separa as duas — e "livre" e "ocupado" sao
+  justamente a distincao que decide a compra. O risco diagonal da ao estado uma forma, alem do
+  contraste mais baixo, e continua legivel em escala de cinza.
+*/
+.assento-ocupado {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    var(--color-borda-clara) 3px,
+    var(--color-borda-clara) 4px
+  );
+}
+
+/*
+  Piso de foco visivel.
+
+  Os componentes que ja declaram o proprio anel continuam com ele; esta regra existe para o que
+  vier depois. Sem um padrao, um elemento interativo novo nasce sem indicacao de foco, e o
+  defeito so aparece para quem navega por teclado — ou seja, para quase ninguem que testa.
+
+  `:focus-visible`, e nao `:focus`: o anel aparece para teclado e some no clique de mouse, que e
+  o comportamento que o navegador ja calcula melhor do que qualquer heuristica nossa.
+*/
+:focus-visible {
+  outline: 2px solid var(--color-marca);
+  outline-offset: 2px;
+}

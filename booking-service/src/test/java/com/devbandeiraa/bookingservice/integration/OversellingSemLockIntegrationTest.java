@@ -6,17 +6,20 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import com.devbandeiraa.bookingservice.client.EventClient;
-import com.devbandeiraa.bookingservice.client.EventSnapshot;
 import com.devbandeiraa.bookingservice.dto.request.CreateBookingRequest;
 import com.devbandeiraa.bookingservice.exception.EstoqueEsgotadoException;
 import com.devbandeiraa.bookingservice.lock.DistributedLock;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.domain.BookingSeat;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.bookingservice.service.BookingService;
+import com.devbandeiraa.bookingservice.support.PlantaDeTeste;
 import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
@@ -42,10 +46,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * exatamente o que acontece quando o Redis esta fora do ar e o servico degrada.
  *
  * <p>Sem lock, todas as 200 threads chegam ao banco ao mesmo tempo, sem serializacao previa
- * alguma. Ainda assim vendem-se exatamente 50 ingressos, porque a condicao que impede o
- * overselling — {@code reserved + quantidade <= total} — esta dentro do {@code WHERE} da mesma
- * instrucao que faz o incremento, e o PostgreSQL a avalia sob o lock de linha que ele proprio
+ * alguma. Ainda assim vendem-se exatamente 50 lugares, porque a condicao que impede vender o
+ * mesmo assento duas vezes — {@code status = FREE} — esta dentro do {@code WHERE} da mesma
+ * instrucao que marca a tomada, e o PostgreSQL a avalia sob o lock de linha que ele proprio
  * adquire para atualizar.
+ *
+ * <p>Desde a Fase 17 a garantia e ainda mais estrutural do que era: existe uma linha por lugar,
+ * e ela so sai de {@code FREE} uma vez. Nao ha contador que possa passar do teto — haveria de
+ * existir duas linhas para o mesmo assento, e a unicidade da chave natural nao permite.
  *
  * <p>Se este teste falhar, o projeto inteiro esta apoiado numa premissa falsa.
  */
@@ -65,7 +73,10 @@ class OversellingSemLockIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private EventInventoryRepository estoqueRepository;
+    private EventSeatRepository assentoRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
 
     @MockitoBean
     private EventClient eventClient;
@@ -79,12 +90,13 @@ class OversellingSemLockIntegrationTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void prepararEventoSemLock() {
+        bookingSeatRepository.deleteAllInBatch();
         bookingRepository.deleteAllInBatch();
-        estoqueRepository.deleteAllInBatch();
+        assentoRepository.deleteAllInBatch();
 
         eventoId = UUID.randomUUID();
         when(eventClient.buscarPublicado(eventoId))
-                .thenReturn(new EventSnapshot(eventoId, CAPACIDADE, PRECO));
+                .thenReturn(PlantaDeTeste.eventoCom(eventoId, CAPACIDADE, PRECO));
 
         // Executa a operacao direto, sem adquirir coisa alguma. E o modo degradado: o servico
         // seguiu funcionando porque o Redis nao e a garantia, apenas a otimizacao.
@@ -103,6 +115,17 @@ class OversellingSemLockIntegrationTest {
 
         // Nem um a menos: nenhuma reserva legitima foi perdida por causa da disputa.
         assertThat(bookingRepository.count()).isEqualTo(CAPACIDADE);
+
+        // E, o que so passou a fazer sentido com assentos: nenhum LUGAR foi para duas reservas.
+        // Com contador, vender demais era um numero maior que o teto; agora e o mesmo assento
+        // aparecendo duas vezes, e e isso que precisa ser impossivel.
+        Map<UUID, Long> porAssento = bookingSeatRepository.findAll().stream()
+                .collect(Collectors.groupingBy(BookingSeat::getSeatId, Collectors.counting()));
+
+        assertThat(porAssento).hasSize(CAPACIDADE);
+        assertThat(porAssento.values())
+                .as("algum lugar foi vendido a mais de um comprador, sem lock")
+                .allMatch(quantas -> quantas == 1L);
     }
 
     private int dispararCompradoresSimultaneos() throws Exception {
@@ -117,7 +140,7 @@ class OversellingSemLockIntegrationTest {
                     largada.await();
                     try {
                         bookingService.criar(
-                                new CreateBookingRequest(eventoId, 1), UUID.randomUUID(), chave);
+                                new CreateBookingRequest(eventoId, null, 1), UUID.randomUUID(), chave);
                         return true;
                     } catch (EstoqueEsgotadoException acabou) {
                         // Sem lock nao ha LOCK_TIMEOUT: cada thread recebe uma resposta
@@ -143,6 +166,7 @@ class OversellingSemLockIntegrationTest {
     }
 
     private int reservado() {
-        return estoqueRepository.findById(eventoId).orElseThrow().getReservedTickets();
+        return (int) (assentoRepository.countByEventId(eventoId)
+                - assentoRepository.contarLivres(eventoId));
     }
 }

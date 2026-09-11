@@ -12,11 +12,13 @@ import com.devbandeiraa.bookingservice.client.EventClient;
 import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
-import com.devbandeiraa.bookingservice.domain.EventInventory;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
-import com.devbandeiraa.bookingservice.repository.EventInventoryRepository;
+import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
+import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
 import com.devbandeiraa.bookingservice.service.ExpiracaoDeReservasJob;
 import com.devbandeiraa.bookingservice.support.GeradorDeToken;
+import com.devbandeiraa.bookingservice.support.AssentosDeTeste;
+import com.devbandeiraa.bookingservice.support.PlantaDeTeste;
 import com.devbandeiraa.bookingservice.support.TestcontainersConfig;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -60,7 +62,10 @@ class CicloDeVidaDaReservaIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private EventInventoryRepository estoqueRepository;
+    private EventSeatRepository assentoRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
 
     @Autowired
     private ExpiracaoDeReservasJob jobDeExpiracao;
@@ -88,7 +93,8 @@ class CicloDeVidaDaReservaIntegrationTest {
     @BeforeEach
     void limparEstado() {
         bookingRepository.deleteAllInBatch();
-        estoqueRepository.deleteAllInBatch();
+        bookingSeatRepository.deleteAllInBatch();
+        assentoRepository.deleteAllInBatch();
 
         // Provedor sempre autorizando: o desfecho da cobranca nao e o objeto destes testes, e um
         // stub que sorteia tornaria intermitente uma verificacao de maquina de estados.
@@ -99,7 +105,7 @@ class CicloDeVidaDaReservaIntegrationTest {
         eventoId = UUID.randomUUID();
         usuarioId = UUID.randomUUID();
         tokenDoUsuario = GeradorDeToken.deUsuario(usuarioId);
-        estoqueRepository.saveAndFlush(EventInventory.hidratado(eventoId, CAPACIDADE, PRECO));
+        AssentosDeTeste.criarCasa(assentoRepository, eventoId, CAPACIDADE, PRECO);
     }
 
     // ---------- pagamento ----------
@@ -265,13 +271,13 @@ class CicloDeVidaDaReservaIntegrationTest {
     @DisplayName("o estoque devolvido pela expiracao volta a ficar disponivel para reserva")
     void estoqueDevolvidoDeveVoltarAoMercado() {
         reservaPendente(CAPACIDADE, prazoDe(-5));
-        assertThat(estoqueRepository.findById(eventoId).orElseThrow().getDisponivel()).isZero();
+        assertThat(AssentosDeTeste.livres(assentoRepository, eventoId)).isZero();
 
         jobDeExpiracao.expirarVencidas();
 
         // Esta e a razao de o job existir: sem ele, um carrinho abandonado esgotaria o evento
         // com assentos vazios.
-        assertThat(estoqueRepository.findById(eventoId).orElseThrow().getDisponivel())
+        assertThat(AssentosDeTeste.livres(assentoRepository, eventoId))
                 .isEqualTo(CAPACIDADE);
     }
 
@@ -287,10 +293,15 @@ class CicloDeVidaDaReservaIntegrationTest {
      */
     private Booking reservaPendente(int quantidade, Instant expiraEm) {
         return transacao.execute(status -> {
-            estoqueRepository.reservar(eventoId, quantidade);
-            return bookingRepository.saveAndFlush(Booking.pendente(
-                    eventoId, usuarioId, quantidade, PRECO, expiraEm,
+            // A reserva vem primeiro, e os lugares sao tomados EM NOME DELA. Ocupar assentos
+            // com um id qualquer e depois criar a reserva com outro montaria um estado que a
+            // aplicacao nunca produz — e o cancelamento nao liberaria nada.
+            Booking reserva = bookingRepository.saveAndFlush(Booking.pendente(
+                    eventoId, usuarioId, quantidade, totalDe(quantidade), expiraEm,
                     "chave-" + UUID.randomUUID()));
+
+            AssentosDeTeste.ocuparPara(assentoRepository, eventoId, quantidade, reserva.getId());
+            return reserva;
         });
     }
 
@@ -302,8 +313,8 @@ class CicloDeVidaDaReservaIntegrationTest {
         return bookingRepository.findById(reserva.getId()).orElseThrow();
     }
 
-    private int reservado() {
-        return estoqueRepository.findById(eventoId).orElseThrow().getReservedTickets();
+    private long reservado() {
+        return AssentosDeTeste.ocupados(assentoRepository, eventoId);
     }
 
     private org.springframework.test.web.servlet.RequestBuilder pagar(UUID id, String token) {
@@ -315,4 +326,10 @@ class CicloDeVidaDaReservaIntegrationTest {
         return post("/bookings/" + id + "/cancel")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
     }
+
+    /** O total da reserva e a soma dos lugares — nao mais preco unitario vezes quantidade. */
+    private static BigDecimal totalDe(int quantidade) {
+        return PRECO.multiply(BigDecimal.valueOf(quantidade));
+    }
+
 }

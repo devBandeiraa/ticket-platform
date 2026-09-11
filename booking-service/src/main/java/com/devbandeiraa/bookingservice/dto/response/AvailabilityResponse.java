@@ -1,26 +1,27 @@
 package com.devbandeiraa.bookingservice.dto.response;
 
-import com.devbandeiraa.bookingservice.domain.EventInventory;
+import com.devbandeiraa.bookingservice.service.EstoqueService;
 import java.util.UUID;
 
 /**
- * Disponibilidade de um evento.
+ * Quantos lugares o evento tem, e quantos restam.
  *
- * <p>E deliberadamente uma foto, e nao uma promessa: entre ler este numero e concluir a reserva,
- * outra pessoa pode ter levado o ultimo ingresso. O contrato do sistema e que a reserva devolve
- * {@code 409 SOLD_OUT} quando isso acontece — este endpoint serve para a tela, nao para a
- * decisao.
+ * <p>Os numeros sao <strong>contados</strong> sobre os proprios assentos, e nao lidos de um
+ * contador. Um contador de reservados ao lado de uma linha por lugar seriam duas fontes de
+ * verdade para a mesma pergunta, e duas fontes divergem — foi por isso que a tabela de estoque
+ * deixou de existir na Fase 17.
  *
- * <p>Vive no booking-service, e nao no event-service, porque quem sabe quanto ja foi reservado e
- * quem guarda as reservas.
+ * <p>O numero e um retrato do instante da consulta: sob concorrencia ele muda entre a leitura e
+ * a reserva, e e por isso que a decisao de vender nao se apoia nele. Quem decide e o
+ * {@code UPDATE} condicional, na hora de tomar o lugar.
  */
-public record AvailabilityResponse(UUID eventId, int total, int reserved, int available) {
+public record AvailabilityResponse(UUID eventId, long total, long reserved, long available) {
 
-    public static AvailabilityResponse de(EventInventory estoque) {
+    public static AvailabilityResponse de(EstoqueService.Disponibilidade disponibilidade) {
         return new AvailabilityResponse(
-                estoque.getEventId(),
-                estoque.getTotalTickets(),
-                estoque.getReservedTickets(),
-                estoque.getDisponivel());
+                disponibilidade.eventId(),
+                disponibilidade.total(),
+                disponibilidade.reservados(),
+                disponibilidade.disponiveis());
     }
 }
