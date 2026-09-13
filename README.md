@@ -19,7 +19,7 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
 [![Testes](https://img.shields.io/badge/testes-356-success?style=flat-square)](#testes)
-[![Cobertura](https://img.shields.io/badge/cobertura-88%25-success?style=flat-square)](#testes)
+[![Cobertura](https://img.shields.io/badge/cobertura-89%25-success?style=flat-square)](#testes)
 
 </div>
 
@@ -549,7 +549,7 @@ cd frontend && npm test       # frontend
 ```
 
 O relatório agregado sai em `cobertura/target/site/jacoco-agregado/index.html`:
-**87,9% de linhas no total, 92,9% nas camadas de service.**
+**88,8% de linhas no total, 93,0% nas camadas de service.**
 
 **Por que o relatório é agregado, e não por módulo.** Medido isoladamente, o `shared-security`
 dava 33% — e o número mentia. `JwtAuthenticationFilter`, `SecurityErrorResponder` e
