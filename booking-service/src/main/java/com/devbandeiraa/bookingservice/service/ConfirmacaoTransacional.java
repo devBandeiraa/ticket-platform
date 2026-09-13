@@ -6,6 +6,7 @@ import com.devbandeiraa.bookingservice.dto.response.BookingResponse;
 import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.messaging.BookingConfirmedEvent;
 import com.devbandeiraa.bookingservice.messaging.OutboxRegistrar;
+import com.devbandeiraa.bookingservice.metrics.MetricasDeNegocio;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
 import com.devbandeiraa.bookingservice.repository.EventSeatRepository;
@@ -41,15 +42,18 @@ public class ConfirmacaoTransacional {
     private final BookingSeatRepository bookingSeatRepository;
     private final EventSeatRepository assentoRepository;
     private final OutboxRegistrar outboxRegistrar;
+    private final MetricasDeNegocio metricas;
 
     public ConfirmacaoTransacional(BookingRepository bookingRepository,
                                    BookingSeatRepository bookingSeatRepository,
                                    EventSeatRepository assentoRepository,
-                                   OutboxRegistrar outboxRegistrar) {
+                                   OutboxRegistrar outboxRegistrar,
+                                   MetricasDeNegocio metricas) {
         this.bookingRepository = bookingRepository;
         this.bookingSeatRepository = bookingSeatRepository;
         this.assentoRepository = assentoRepository;
         this.outboxRegistrar = outboxRegistrar;
+        this.metricas = metricas;
     }
 
     /**
@@ -87,6 +91,10 @@ public class ConfirmacaoTransacional {
         // falhasse; publicar depois do commit deixaria a reserva paga sem que ninguem soubesse,
         // caso a publicacao falhasse. Gravado junto, os dois fatos existem ou nao existem.
         outboxRegistrar.registrarConfirmacao(BookingConfirmedEvent.de(confirmada));
+
+        // Depois do UPDATE condicional ter vencido: so conta como venda o que de fato mudou de
+        // estado. Instrumentar antes contaria tambem as tentativas que perderam a corrida.
+        metricas.confirmada(confirmada);
 
         log.info("reserva paga: id={} comprovante={}", id, autorizacao.authorizationCode());
         return Optional.of(BookingResponse.de(confirmada,

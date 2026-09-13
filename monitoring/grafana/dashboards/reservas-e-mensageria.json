@@ -2,21 +2,216 @@
   "uid": "ticket-reservas",
   "title": "Reservas e mensageria",
   "description": "As metricas do dominio, e nao da infraestrutura. Sao as que respondem a pergunta que originou o projeto: quanta disputa realmente chega ao estoque, e o que acontece quando as defesas em volta dela falham.",
-  "tags": ["ticket-platform", "dominio"],
+  "tags": [
+    "ticket-platform",
+    "dominio"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
   "refresh": "10s",
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "panels": [
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Lugares vendidos (1h)",
+      "description": "O numero que diz se a plataforma esta cumprindo a funcao dela. Todos os indicadores tecnicos podem estar verdes e este ficar em zero.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_lugares_vendidos_total[1h])) or vector(0)",
+          "legendFormat": "Lugares vendidos (1h)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Reservas expiradas (1h)",
+      "description": "Desistencia por inercia: reservou e sumiu. Disparando, o prazo de pagamento provavelmente esta curto demais.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_reservas_expiradas_total[1h])) or vector(0)",
+          "legendFormat": "Reservas expiradas (1h)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Reservas canceladas (1h)",
+      "description": "Desistencia deliberada. Separada da expiracao de proposito: somadas, escondem a diferenca que diria qual dos dois problemas existe.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(booking_reservas_canceladas_total[1h])) or vector(0)",
+          "legendFormat": "Reservas canceladas (1h)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "yellow"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Tempo mediano ate pagar",
+      "description": "Da criacao da reserva ao pagamento — quanto o usuario demora para decidir. Quanto a cobranca demora ja aparece na latencia do payment-simulator.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum(rate(booking_tempo_ate_confirmacao_seconds_bucket[1h])) by (le))",
+          "legendFormat": "Tempo mediano ate pagar"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "s",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      }
+    },
     {
       "id": 1,
       "type": "stat",
       "title": "Locks adquiridos (1h)",
       "description": "Reservas que entraram na secao critica com exclusividade.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
       "targets": [
         {
           "refId": "A",
@@ -25,7 +220,13 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "value",
         "graphMode": "area",
         "textMode": "value"
@@ -33,7 +234,10 @@
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "green" }
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
         },
         "overrides": []
       }
@@ -43,8 +247,16 @@
       "type": "stat",
       "title": "Locks nao adquiridos (1h)",
       "description": "Tentativas que desistiram do lock depois das repeticoes configuradas. Nao e erro: e a medida de quanta gente disputou o mesmo evento ao mesmo tempo.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 5
+      },
       "targets": [
         {
           "refId": "A",
@@ -53,7 +265,13 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "value",
         "graphMode": "area",
         "textMode": "value"
@@ -61,7 +279,10 @@
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "orange" }
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
         },
         "overrides": []
       }
@@ -71,8 +292,16 @@
       "type": "stat",
       "title": "Reservas sem lock nenhum (1h)",
       "description": "Quantas vezes o Redis nao respondeu e a reserva seguiu adiante mesmo assim. E o painel que mostra a tese do projeto funcionando: o lock e uma otimizacao para reduzir disputa, nao a garantia. Mesmo com este numero alto, o UPDATE condicional e a constraint no PostgreSQL continuam impedindo a venda a mais.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      },
       "targets": [
         {
           "refId": "A",
@@ -81,7 +310,13 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "background",
         "graphMode": "area",
         "textMode": "value"
@@ -92,8 +327,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
             ]
           }
         },
@@ -105,8 +346,16 @@
       "type": "stat",
       "title": "Locks expirados em uso (1h)",
       "description": "O TTL venceu enquanto a secao critica ainda rodava, o que significa que duas threads podem ter estado la dentro juntas. Continua sem oversell — e o banco que garante — mas um numero diferente de zero aqui pede um TTL maior.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
       "targets": [
         {
           "refId": "A",
@@ -115,7 +364,13 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "background",
         "graphMode": "area",
         "textMode": "value"
@@ -126,8 +381,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           }
         },
@@ -139,8 +400,16 @@
       "type": "timeseries",
       "title": "Disputa pelo lock de reserva",
       "description": "As duas curvas juntas contam o formato da carga. Um pico simultaneo no mesmo evento — o cenario que o projeto existe para resolver — aparece como as duas subindo ao mesmo tempo.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
       "targets": [
         {
           "refId": "A",
@@ -159,23 +428,60 @@
         }
       ],
       "options": {
-        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "ops",
           "min": 0,
-          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "adquiridos" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "adquiridos"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "sem lock (Redis fora)" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "sem lock (Redis fora)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           }
         ]
       }
@@ -185,8 +491,16 @@
       "type": "timeseries",
       "title": "Outbox transacional",
       "description": "As 'descartadas' sao mensagens que esgotaram as tentativas e sairam do caminho para nao travar o lote. Cada uma e uma notificacao que ninguem recebeu — o unico numero deste painel que merece investigacao imediata.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
       "targets": [
         {
           "refId": "A",
@@ -205,23 +519,60 @@
         }
       ],
       "options": {
-        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "ops",
           "min": 0,
-          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "publicadas" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "publicadas"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "descartadas (perdidas)" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "descartadas (perdidas)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           }
         ]
       }
@@ -231,8 +582,16 @@
       "type": "timeseries",
       "title": "Notificacoes e deduplicacao",
       "description": "O RabbitMQ entrega ao menos uma vez, entao a mesma confirmacao pode chegar duas vezes ao notification-service. As 'duplicatas descartadas' sao a prova de que a defesa contra isso esta trabalhando; se elas existem e as 'enviadas' nao dobraram, ninguem recebeu o e-mail em dobro.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
       "targets": [
         {
           "refId": "A",
@@ -251,25 +610,100 @@
         }
       ],
       "options": {
-        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "ops",
           "min": 0,
-          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "enviadas" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "enviadas"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "sem deduplicacao (Redis fora)" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "sem deduplicacao (Redis fora)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           }
         ]
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Vendidos contra devolvidos ao pool",
+      "description": "O que entra e o que volta. Lugares liberados vem com o motivo como etiqueta, entao a mesma serie responde 'quanto voltou' e 'por que voltou'.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(booking_lugares_vendidos_total[5m]))",
+          "legendFormat": "vendidos"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (motivo) (rate(booking_lugares_liberados_total[5m]))",
+          "legendFormat": "liberados — {{motivo}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "decimals": 2
+        },
+        "overrides": []
       }
     }
   ]

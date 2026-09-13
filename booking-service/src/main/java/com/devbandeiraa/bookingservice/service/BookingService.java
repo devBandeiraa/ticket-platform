@@ -12,6 +12,7 @@ import com.devbandeiraa.bookingservice.exception.ChaveDeIdempotenciaInvalidaExce
 import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.exception.TransicaoDeReservaInvalidaException;
 import com.devbandeiraa.bookingservice.lock.DistributedLock;
+import com.devbandeiraa.bookingservice.metrics.MetricasDeNegocio;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSpecifications;
@@ -60,6 +61,7 @@ public class BookingService {
     private final PagamentoClient pagamentoClient;
     private final DistributedLock lock;
     private final ReservaProperties propriedades;
+    private final MetricasDeNegocio metricas;
 
     public BookingService(BookingRepository bookingRepository,
                           BookingSeatRepository bookingSeatRepository,
@@ -69,7 +71,8 @@ public class BookingService {
                           ConfirmacaoTransacional confirmacaoTransacional,
                           PagamentoClient pagamentoClient,
                           DistributedLock lock,
-                          ReservaProperties propriedades) {
+                          ReservaProperties propriedades,
+                          MetricasDeNegocio metricas) {
         this.bookingRepository = bookingRepository;
         this.bookingSeatRepository = bookingSeatRepository;
         this.assentoRepository = assentoRepository;
@@ -79,6 +82,7 @@ public class BookingService {
         this.pagamentoClient = pagamentoClient;
         this.lock = lock;
         this.propriedades = propriedades;
+        this.metricas = metricas;
     }
 
     /**
@@ -289,6 +293,7 @@ public class BookingService {
         }
 
         assentoRepository.liberar(id);
+        metricas.cancelada(reserva.getQuantity());
         log.info("reserva cancelada: id={} evento={} lugares={} (assentos liberados)",
                 id, reserva.getEventId(), reserva.getQuantity());
     }
@@ -312,6 +317,7 @@ public class BookingService {
         }
 
         assentoRepository.liberar(reserva.getId());
+        metricas.expirada(reserva.getQuantity());
         log.info("reserva expirada: id={} evento={} lugares={} (assentos liberados)",
                 reserva.getId(), reserva.getEventId(), reserva.getQuantity());
 

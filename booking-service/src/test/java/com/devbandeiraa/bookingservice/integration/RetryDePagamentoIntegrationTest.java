@@ -67,6 +67,43 @@ class RetryDePagamentoIntegrationTest {
         requisicoesAntesDoTeste = PROVEDOR.getRequestCount();
     }
 
+    /**
+     * O estorno — o caminho de maior risco do sistema, e que ate a Fase 20 nao tinha teste algum.
+     *
+     * <p>Ele existe para o caso em que a cobranca passa e a reserva ja nao pode ser confirmada:
+     * o prazo venceu durante a chamada ao provedor. Sem estorno, o desfecho e dinheiro cobrado
+     * sem ingresso, que e pior do que a venda perdida.
+     */
+    @Test
+    @DisplayName("estorno chama o provedor uma unica vez, sem retry")
+    void estornoNaoDeveRepetir() {
+        PROVEDOR.enqueue(new MockResponse().setResponseCode(204));
+
+        assertThat(pagamentoClient.estornar(UUID.randomUUID(), "AUT-123")).isTrue();
+
+        // Uma, e nao quatro. O estorno acontece no caminho de erro de uma requisicao que o
+        // usuario esta esperando, e prende-lo por mais tentativas nao mudaria o que ele ve.
+        assertThat(requisicoesRecebidas()).isEqualTo(1);
+    }
+
+    /**
+     * O desfecho que o sistema admite em vez de fingir.
+     *
+     * <p>Falhando o estorno, nao ha nada que o codigo possa fazer sozinho: o dinheiro saiu e o
+     * ingresso nao existe. O que ele faz e registrar a pendencia de forma encontravel e devolver
+     * {@code false} a quem chamou — em vez de engolir a falha e deixar o caso invisivel.
+     */
+    @Test
+    @DisplayName("estorno que falha devolve false, e nao lanca")
+    void estornoQueFalhaDeveSerReportado() {
+        PROVEDOR.enqueue(new MockResponse().setResponseCode(500));
+
+        // Nao lanca: quem chamou ja esta tratando um erro, e uma excecao aqui substituiria a
+        // causa original — o usuario veria "falha no estorno" em vez de "sua reserva venceu".
+        assertThat(pagamentoClient.estornar(UUID.randomUUID(), "AUT-456")).isFalse();
+        assertThat(requisicoesRecebidas()).isEqualTo(1);
+    }
+
     /** Quantas requisicoes chegaram ao provedor durante este teste, e nao desde que ele subiu. */
     private int requisicoesRecebidas() {
         return PROVEDOR.getRequestCount() - requisicoesAntesDoTeste;

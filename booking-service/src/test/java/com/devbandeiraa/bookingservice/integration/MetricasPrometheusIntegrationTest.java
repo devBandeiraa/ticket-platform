@@ -112,6 +112,48 @@ class MetricasPrometheusIntegrationTest {
                 .contains("booking_outbox_publicadas_total");
     }
 
+    /**
+     * As metricas que respondem "vendeu?", e nao "o lock funcionou?".
+     *
+     * <p>A distincao e o ponto da Fase 20. A plataforma pode estar com todos os indicadores
+     * tecnicos verdes — sem erro, sem fila, latencia baixa — e nao vender ingresso nenhum,
+     * porque o catalogo subiu vazio ou o pagamento recusa tudo. Nenhum painel de infraestrutura
+     * mostra isso.
+     *
+     * <p>Como no teste acima, o valor de travar os nomes esta no painel do Grafana: ele consulta
+     * por nome, e uma renomeacao silenciosa deixa o grafico vazio sem erro algum.
+     */
+    @Test
+    @DisplayName("publica as metricas de negocio, e nao so as de infraestrutura")
+    void publicaMetricasDeNegocio() throws Exception {
+        String coleta = coletar();
+
+        assertThat(coleta)
+                .contains("booking_lugares_vendidos_total")
+                .contains("booking_reservas_confirmadas_total")
+                .contains("booking_reservas_expiradas_total")
+                .contains("booking_reservas_canceladas_total")
+                .contains("booking_tempo_ate_confirmacao_seconds");
+    }
+
+    /**
+     * Expiracao e cancelamento sao motivos distintos na mesma metrica.
+     *
+     * <p>Somados, escondem a diferenca que interessa: um mede desistencia por inercia — a pessoa
+     * reservou e sumiu —, o outro, desistencia deliberada. Se o primeiro dispara, o prazo de
+     * pagamento provavelmente esta curto demais; se o segundo, o problema e outro.
+     */
+    @Test
+    @DisplayName("lugares liberados distinguem expiracao de cancelamento por etiqueta")
+    void distinguiOsMotivosDeLiberacao() throws Exception {
+        String coleta = coletar();
+
+        assertThat(coleta)
+                .contains("booking_lugares_liberados_total")
+                .contains("motivo=\"expiracao\"")
+                .contains("motivo=\"cancelamento\"");
+    }
+
     private String coletar() throws Exception {
         return mockMvc.perform(get(CAMINHO))
                 .andExpect(status().isOk())
