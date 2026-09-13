@@ -3,17 +3,39 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.5.16</version>
+		<relativePath/>
+	</parent>
+
 	<groupId>com.devbandeiraa</groupId>
 	<artifactId>ticket-platform</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>ticket-platform</name>
-	<description>Agregador do monorepo da plataforma de ingressos</description>
+	<description>Parent do monorepo da plataforma de ingressos</description>
 
 	<!--
-		Agregador apenas: nao e o parent dos modulos. Cada servico continua herdando de
-		spring-boot-starter-parent, e este POM so existe para que `./mvnw install` na raiz
-		construa tudo na ordem correta de dependencia.
+		Agregador E parent dos modulos.
+
+		Ate a Fase 19 era agregador apenas, e cada servico herdava direto do
+		spring-boot-starter-parent. A decisao mudou quando o JaCoCo entrou: configurar cobertura
+		exigia repetir o mesmo bloco de plugin em sete arquivos, e o proprio projeto ja havia
+		argumentado contra isso ao manter um unico Dockerfile parametrizado — "cinco copias
+		divergiriam; bastaria alguem corrigir a versao em quatro delas". Sete copias de uma
+		configuracao de plugin teriam o mesmo destino.
+
+		Um modulo Maven so pode ter um parent, entao centralizar exigia que este POM passasse a
+		herdar do Boot e os modulos passassem a herdar dele. O que os modulos recebiam antes do
+		spring-boot-starter-parent — gerenciamento de dependencias, plugin de build, versao do
+		compilador — continua chegando, agora por transitividade.
+
+		O que este POM oferece alem da agregacao:
+		  - `java.version`, declarada uma vez em vez de sete;
+		  - configuracao do JaCoCo em pluginManagement, ativada por modulo;
+		  - a ordem de construcao, que ja era o motivo original de ele existir.
 
 		Sem ele, quem clonasse o repositorio precisaria instalar o shared-security no
 		repositorio local antes de conseguir compilar qualquer servico que dependa dele —
@@ -30,6 +52,112 @@
 		<module>notification-service</module>
 		<module>payment-simulator</module>
 		<module>api-gateway</module>
+		<!-- Por ultimo: o agregado so existe depois que todos os .exec foram escritos. -->
+		<module>cobertura</module>
 	</modules>
+
+	<properties>
+		<java.version>17</java.version>
+		<jacoco.version>0.8.13</jacoco.version>
+	</properties>
+
+	<build>
+		<pluginManagement>
+			<plugins>
+				<!--
+					Cobertura de testes.
+
+					Declarado aqui e ativado em cada modulo por um <plugin> sem configuracao —
+					assim a versao e as exclusoes existem num lugar so, e trocar qualquer uma
+					delas e uma edicao, nao sete.
+
+					O que fica de FORA da contagem, e por que:
+
+					  - `**/dto/**` — records de requisicao e resposta. Sao dados, nao decisao.
+					    Um teste que construisse um record para ler seus proprios campos de volta
+					    inflaria o numero sem provar nada.
+					  - `**/config/**` — configuracao de framework. O que ela faz e verificado
+					    quando o contexto sobe; cobrir linha a linha mediria o Spring.
+					  - `**/*Application.*` — o metodo main.
+					  - `**/domain/**Status.*` e enums — valores, nao comportamento.
+
+					A ressalva honesta fica registrada no README: cobertura mede linha executada,
+					e nao regra verificada. O teste que roda com o lock desligado prova mais do
+					que qualquer percentual.
+				-->
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>${jacoco.version}</version>
+					<configuration>
+						<excludes>
+							<exclude>**/dto/**</exclude>
+							<exclude>**/config/**</exclude>
+							<exclude>**/*Application.*</exclude>
+							<exclude>**/*Properties.*</exclude>
+						</excludes>
+					</configuration>
+					<executions>
+						<execution>
+							<id>prepara-agente</id>
+							<goals>
+								<goal>prepare-agent</goal>
+							</goals>
+						</execution>
+						<!--
+							O relatorio sai no `verify`, e nao no `test`: os testes de
+							integracao com Testcontainers tambem contam, e eles rodam depois.
+							Gerar no `test` mediria so metade do que existe.
+						-->
+						<execution>
+							<id>gera-relatorio</id>
+							<phase>verify</phase>
+							<goals>
+								<goal>report</goal>
+							</goals>
+						</execution>
+						<!--
+							Piso de cobertura, e nao meta a perseguir.
+
+							Vale so para `**.service.**`, que e onde mora a regra de negocio. Os
+							services do projeto estao hoje acima de 90%; o piso em 70% existe
+							para que uma regressao grande falhe o build, e nao para empurrar o
+							numero para cima. Um piso alto demais convida ao pior tipo de teste:
+							o que percorre o codigo sem afirmar nada, escrito para calar a
+							ferramenta.
+
+							`haltOnFailure` ligado de proposito. Um limite que apenas avisa e
+							ignorado na primeira pressa.
+						-->
+						<execution>
+							<id>verifica-piso-dos-services</id>
+							<phase>verify</phase>
+							<goals>
+								<goal>check</goal>
+							</goals>
+							<configuration>
+								<haltOnFailure>true</haltOnFailure>
+								<rules>
+									<rule>
+										<element>PACKAGE</element>
+										<includes>
+											<include>*.service</include>
+										</includes>
+										<limits>
+											<limit>
+												<counter>LINE</counter>
+												<value>COVEREDRATIO</value>
+												<minimum>0.70</minimum>
+											</limit>
+										</limits>
+									</rule>
+								</rules>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
 
 </project>
