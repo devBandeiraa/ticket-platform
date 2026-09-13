@@ -16,6 +16,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Disparo manual. Util para reexecutar apos uma falha de infraestrutura do
+  # runner — repetir um build que caiu por rede nao deveria exigir um commit
+  # vazio so para provocar o gatilho.
+  workflow_dispatch:
 
 # Um push novo na mesma branch cancela a execução anterior. Sem isto, uma
 # sequência de correções deixa três builds obsoletos ocupando a fila — e o
