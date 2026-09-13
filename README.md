@@ -18,7 +18,7 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white)](#observabilidade)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
-[![Testes](https://img.shields.io/badge/testes-350-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-356-success?style=flat-square)](#testes)
 [![Cobertura](https://img.shields.io/badge/cobertura-88%25-success?style=flat-square)](#testes)
 
 </div>
@@ -348,6 +348,27 @@ binário invisível.
 
 A página `/status` responde sobre o instante; série temporal é outra pergunta, e mora aqui.
 
+### "Está vendendo?" → as métricas de negócio
+
+A pergunta que nenhum painel de infraestrutura responde. A plataforma pode estar com **todos os
+indicadores técnicos verdes** — sem erro, sem fila, latência baixa — e não vender ingresso
+nenhum, porque o catálogo subiu vazio ou o provedor de pagamento está recusando tudo.
+
+```
+booking_lugares_vendidos_total          quanto saiu da casa
+booking_reservas_expiradas_total        desistência por inércia
+booking_reservas_canceladas_total       desistência deliberada
+booking_tempo_ate_confirmacao_seconds   da reserva ao pagamento
+```
+
+Expiração e cancelamento são métricas **separadas** de propósito. Somadas, escondem a diferença
+que importa: se as expirações disparam, o prazo de pagamento provavelmente está curto demais; se
+os cancelamentos disparam, o problema é outro.
+
+O tempo é medido da **criação** da reserva ao pagamento, e não da chamada ao provedor — o que se
+quer saber é quanto o usuário demora para decidir. Quanto a cobrança demora para responder já
+aparece na latência HTTP do `payment-simulator`.
+
 ### "Qual erro o usuário viu?" → o `X-Request-Id`
 
 O gateway garante um por requisição, propaga para todos os serviços e devolve no corpo do erro.
@@ -489,7 +510,7 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**350 no total** — 310 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+**356 no total** — 316 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
 e 40 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
 
@@ -517,6 +538,8 @@ banco em memória não o reproduz.
 | `Status.test.tsx` | "Sem tráfego" e "0 ms" não são a mesma coisa, e a tela não os confunde |
 | `BookingControllerWebMvcTest` | Cada exceção de domínio vira o código HTTP certo — `SEATS_TAKEN` e `SOLD_OUT` dizem coisas opostas a quem está comprando |
 | `AdminEventControllerWebMvcTest` | Usuário autenticado sem papel de admin recebe `403`, e não `401`: a distinção decide se a tela pede login a quem já está logado |
+| `estornoQueFalhaDeveSerReportado` | O caminho de maior risco: cobrança feita, reserva não confirmada. Falhando o estorno, devolve `false` e registra a pendência — em vez de lançar e substituir a causa que o usuário veria |
+| `LogEstruturadoTest` | O MDC vira campo consultável no JSON, e não prefixo a ser extraído por regex no agregador |
 | `SeedDeEventosIntegrationTest` | O catálogo de demonstração não apodrece: falha se alguém trocar as datas relativas do seed por constantes — um defeito que só apareceria meses depois |
 
 ```bash
@@ -637,9 +660,9 @@ código de negócio, e atualizado a cada fase:
 - Modelo de dados, tabela por tabela, com a razão de cada constraint
 - Contratos de API e a tabela de rotas do gateway
 - O fluxo da reserva passo a passo, do clique ao commit
-- **71 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
+- **76 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
   depois, ao subir em Kubernetes ou ao olhar o painel durante uma queda de verdade
-- **84 decisões registradas**, cada uma com a justificativa e a alternativa recusada
+- **90 decisões registradas**, cada uma com a justificativa e a alternativa recusada
 
 Cada uma das catorze fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
 assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)

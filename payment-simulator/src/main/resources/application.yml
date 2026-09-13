@@ -52,6 +52,22 @@ management:
       endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
 
 logging:
+  # Formato estruturado, quando pedido.
+  #
+  # Vazio por padrao: `docker compose logs` e lido por uma PESSOA, e JSON numa tela de terminal
+  # troca legibilidade por nada — nao ha agregador local consumindo isso. Onde existe coletor,
+  # basta definir LOG_FORMAT=ecs e cada linha vira um objeto com campos consultaveis.
+  #
+  # Nativo do Spring Boot desde a 3.4, entao nao ha dependencia nova. O
+  # `logstash-logback-encoder`, que era o caminho usual, deixaria de se justificar aqui: uma
+  # dependencia a mais para fazer o que o framework ja faz.
+  #
+  # O MDC vai junto — requestId e traceId viram campos do objeto, e nao um prefixo a ser
+  # extraido por expressao regular no agregador. E o ganho concreto do formato: procurar por
+  # `requestId` deixa de depender de como a linha foi montada.
+  structured:
+    format:
+      console: ${LOG_FORMAT:}
   # Prefixa cada linha com dois identificadores: o X-Request-Id, posto no MDC pelo
   # CorrelacaoServletFilter, e o traceId do OpenTelemetry, posto pelo Micrometer Tracing.
   #
