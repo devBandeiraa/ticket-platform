@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.domain.LayoutDeSetor;
 import com.devbandeiraa.eventservice.repository.EventRepository;
 import com.devbandeiraa.eventservice.support.PostgresContainerConfig;
@@ -173,10 +174,76 @@ class CatalogoPublicoIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("filtra por categoria, deixando de fora as demais")
+    void deveFiltrarPorCategoria() throws Exception {
+        publicado("Show de Rock", 10, EventCategory.SHOWS);
+        publicado("Virada Cultural", 20, EventCategory.FESTIVAIS);
+        publicado("Monologo", 30, EventCategory.TEATRO);
+
+        mockMvc.perform(get("/events").param("categoria", "TEATRO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Monologo"))
+                .andExpect(jsonPath("$.content[0].category").value("TEATRO"));
+    }
+
+    @Test
+    @DisplayName("sem categoria no parametro, devolve todas")
+    void semCategoriaDeveDevolverTodas() throws Exception {
+        publicado("Show de Rock", 10, EventCategory.SHOWS);
+        publicado("Monologo", 30, EventCategory.TEATRO);
+
+        mockMvc.perform(get("/events"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    @DisplayName("a categoria combina com os demais filtros, em vez de substitui-los")
+    void categoriaDeveCombinarComBusca() throws Exception {
+        publicado("Show de Rock", 10, EventCategory.SHOWS);
+        publicado("Show de Jazz", 20, EventCategory.SHOWS);
+        publicado("Show de Teatro", 30, EventCategory.TEATRO);
+
+        // "Show" casa com os tres; a categoria tem de reduzir a dois, e nao ser ignorada.
+        mockMvc.perform(get("/events")
+                        .param("busca", "Show")
+                        .param("categoria", "SHOWS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    @DisplayName("categoria inexistente devolve 400, e nao uma lista vazia")
+    void categoriaDesconhecidaDeveDevolver400() throws Exception {
+        publicado("Show de Rock", 10, EventCategory.SHOWS);
+
+        // Lista vazia diria ao cliente que nao ha eventos de "MUSICA", quando o que houve foi
+        // um parametro invalido. Sao diagnosticos diferentes e merecem respostas diferentes.
+        mockMvc.perform(get("/events").param("categoria", "MUSICA"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("um rascunho da categoria procurada continua invisivel")
+    void rascunhoNaoDeveVazarPeloFiltroDeCategoria() throws Exception {
+        Event escondido = novo("Ainda em preparacao", 15, EventCategory.TEATRO);
+        eventRepository.saveAndFlush(escondido);
+
+        mockMvc.perform(get("/events").param("categoria", "TEATRO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
     // ---------- auxiliares ----------
 
     private Event publicado(String nome, int diasAteOEvento) {
-        Event evento = novo(nome, diasAteOEvento);
+        return publicado(nome, diasAteOEvento, EventCategory.SHOWS);
+    }
+
+    private Event publicado(String nome, int diasAteOEvento, EventCategory categoria) {
+        Event evento = novo(nome, diasAteOEvento, categoria);
         evento.publicar();
         return eventRepository.saveAndFlush(evento);
     }
@@ -192,6 +259,10 @@ class CatalogoPublicoIntegrationTest {
     }
 
     private Event novo(String nome, int diasAteOEvento) {
+        return novo(nome, diasAteOEvento, EventCategory.SHOWS);
+    }
+
+    private Event novo(String nome, int diasAteOEvento, EventCategory categoria) {
         return Event.rascunho(
                 nome,
                 "Descricao de " + nome,
@@ -199,9 +270,11 @@ class CatalogoPublicoIntegrationTest {
                 Instant.now().plus(diasAteOEvento, ChronoUnit.DAYS),
                 // Sem capa: o catalogo precisa funcionar para o evento que ainda nao tem arte.
                 null,
+                categoria,
                 UUID.randomUUID(),
                 // 25 filas de 20 lugares = 500, a mesma capacidade que estes testes usavam
                 // quando ela era um inteiro solto.
-                List.of(new LayoutDeSetor("Plateia", new BigDecimal("150.00"), 25, 20)));
+                List.of(new LayoutDeSetor("Plateia", new BigDecimal("150.00"), 25, 20,
+                        null, null, null)));
     }
 }

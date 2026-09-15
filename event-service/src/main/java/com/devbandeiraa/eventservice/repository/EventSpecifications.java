@@ -1,6 +1,7 @@
 package com.devbandeiraa.eventservice.repository;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.domain.EventStatus;
 import java.time.Instant;
 import org.springframework.data.jpa.domain.Specification;
@@ -31,6 +32,10 @@ public final class EventSpecifications {
         return (raiz, consulta, construtor) -> construtor.like(
                 construtor.lower(raiz.get("name")),
                 "%" + trecho.toLowerCase() + "%");
+    }
+
+    public static Specification<Event> naCategoria(EventCategory categoria) {
+        return (raiz, consulta, construtor) -> construtor.equal(raiz.get("category"), categoria);
     }
 
     public static Specification<Event> aPartirDe(Instant data) {

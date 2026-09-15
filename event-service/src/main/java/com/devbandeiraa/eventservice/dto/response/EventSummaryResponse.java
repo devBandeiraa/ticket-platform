@@ -1,6 +1,7 @@
 package com.devbandeiraa.eventservice.dto.response;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -12,7 +13,9 @@ import java.util.UUID;
  * de listagem nao mostra. Quem abre o detalhe recebe o {@link EventDetailResponse} completo.
  *
  * <p>A capa segue o mesmo criterio e por isso entra: o cartao do catalogo a exibe. O corte e por
- * o que a listagem desenha, e nao pelo tamanho do campo.
+ * o que a listagem desenha, e nao pelo tamanho do campo. A categoria entra pela mesma razao — o
+ * cartao a mostra como etiqueta, e sem ela a listagem teria de buscar o detalhe de cada evento
+ * so para saber o que escrever.
  */
 public record EventSummaryResponse(
         UUID id,
@@ -21,7 +24,8 @@ public record EventSummaryResponse(
         Instant eventDate,
         BigDecimal price,
         int totalTickets,
-        String imageUrl) {
+        String imageUrl,
+        EventCategory category) {
 
     public static EventSummaryResponse de(Event evento) {
         return new EventSummaryResponse(
@@ -31,6 +35,7 @@ public record EventSummaryResponse(
                 evento.getEventDate(),
                 evento.getPrice(),
                 evento.getTotalTickets(),
-                evento.getImageUrl());
+                evento.getImageUrl(),
+                evento.getCategory());
     }
 }

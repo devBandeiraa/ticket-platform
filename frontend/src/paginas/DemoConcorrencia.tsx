@@ -7,7 +7,7 @@ import { ErroDaApi } from '../api/cliente'
 import { useSessao } from '../auth/SessaoContext'
 import { Carregando, Erro, Vazio } from '../componentes/Estados'
 import { NumeroAnimado } from '../componentes/NumeroAnimado'
-import { Botao, Cartao, Estatistica } from '../componentes/Ui'
+import { Botao, Cartao, Estatistica, Selecao } from '../componentes/Ui'
 
 interface Resultado {
   confirmadas: number
@@ -149,24 +149,21 @@ export function DemoConcorrencia() {
                 </Vazio>
               ) : (
                 <>
-                  <label className="group block">
-                    <span className="mb-1.5 block text-sm text-suave">Evento</span>
-                    <select
-                      value={eventoId}
-                      onChange={(e) => {
-                        setEventoId(e.target.value)
-                        setResultado(null)
-                      }}
-                      className="w-full rounded-md border border-borda bg-fundo/60 px-3 py-2 text-sm outline-none transition-colors hover:border-borda-clara focus:border-marca"
-                    >
-                      <option value="">selecione...</option>
-                      {eventos.data.content.map((evento) => (
-                        <option key={evento.id} value={evento.id}>
-                          {evento.name} ({evento.totalTickets} ingressos)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <Selecao
+                    rotulo="Evento"
+                    value={eventoId}
+                    onChange={(e) => {
+                      setEventoId(e.target.value)
+                      setResultado(null)
+                    }}
+                  >
+                    <option value="">selecione...</option>
+                    {eventos.data.content.map((evento) => (
+                      <option key={evento.id} value={evento.id}>
+                        {evento.name} ({evento.totalTickets} ingressos)
+                      </option>
+                    ))}
+                  </Selecao>
 
                   <label className="block">
                     <span className="mb-1.5 flex items-baseline justify-between text-sm text-suave">

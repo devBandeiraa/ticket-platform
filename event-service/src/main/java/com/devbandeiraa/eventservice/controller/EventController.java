@@ -1,5 +1,6 @@
 package com.devbandeiraa.eventservice.controller;
 
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.dto.response.EventDetailResponse;
 import com.devbandeiraa.eventservice.dto.response.EventSummaryResponse;
 import com.devbandeiraa.eventservice.dto.response.PaginaResponse;
@@ -42,9 +43,10 @@ public class EventController {
     }
 
     /**
-     * @param busca filtra por trecho do nome, ignorando maiusculas
-     * @param de    limite inferior da data do evento
-     * @param ate   limite superior da data do evento
+     * @param busca     filtra por trecho do nome, ignorando maiusculas
+     * @param categoria filtra por categoria; ausente devolve todas
+     * @param de        limite inferior da data do evento
+     * @param ate       limite superior da data do evento
      */
     @Operation(summary = "Lista eventos publicados",
             description = "Rascunhos e cancelados nunca aparecem aqui. O parametro `size` tem "
@@ -53,13 +55,15 @@ public class EventController {
     @GetMapping
     public ResponseEntity<PaginaResponse<EventSummaryResponse>> listar(
             @RequestParam(required = false) String busca,
+            @RequestParam(required = false) EventCategory categoria,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant de,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant ate,
             // Paginacao com teto: sem o limite, um `size=1000000` na URL viraria uma varredura
             // completa da tabela a cada requisicao, de graca, para qualquer visitante.
             @PageableDefault(size = 20, sort = "eventDate", direction = Sort.Direction.ASC) Pageable pageable) {
 
-        return ResponseEntity.ok(eventService.listarPublicados(busca, de, ate, pageable));
+        return ResponseEntity.ok(
+                eventService.listarPublicados(busca, categoria, de, ate, pageable));
     }
 
     @Operation(summary = "Detalha um evento publicado")

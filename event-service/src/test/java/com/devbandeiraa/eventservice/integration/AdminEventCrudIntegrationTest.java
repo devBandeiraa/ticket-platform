@@ -350,6 +350,109 @@ class AdminEventCrudIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Show de Jazz"));
     }
 
+    // ---------- setor como oferta comercial ----------
+
+    @Test
+    @DisplayName("descricao, beneficios e faixa do setor voltam na resposta")
+    void deveGuardarSetorDescritivo() throws Exception {
+        Map<String, Object> corpo = corpoValido();
+        Map<String, Object> camarote = setor("Camarote", "680.00", 10, 40);
+        camarote.put("description", "Cabines laterais com mesa.");
+        camarote.put("benefits", List.of("Entrada exclusiva", "Servico de bar na mesa"));
+        camarote.put("tier", "VIP");
+        corpo.put("sectors", List.of(camarote));
+
+        mockMvc.perform(criar(corpo))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sectors[0].description").value("Cabines laterais com mesa."))
+                .andExpect(jsonPath("$.sectors[0].benefits.length()").value(2))
+                .andExpect(jsonPath("$.sectors[0].benefits[0]").value("Entrada exclusiva"))
+                .andExpect(jsonPath("$.sectors[0].tier").value("VIP"));
+    }
+
+    @Test
+    @DisplayName("setor sem os campos novos nasce STANDARD e com lista vazia, nunca nula")
+    void setorSemCamposNovosDeveTerPadrao() throws Exception {
+        // A tela percorre `benefits` sem testar nulidade antes. Nulo aqui viraria um erro de
+        // runtime no navegador, e a origem estaria a tres servicos de distancia.
+        mockMvc.perform(criar(corpoValido()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sectors[0].tier").value("STANDARD"))
+                .andExpect(jsonPath("$.sectors[0].benefits").isArray())
+                .andExpect(jsonPath("$.sectors[0].benefits.length()").value(0))
+                .andExpect(jsonPath("$.sectors[0].description").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("mais de seis beneficios devolve 400, e nao estoura a constraint")
+    void deveRecusarBeneficiosDemais() throws Exception {
+        Map<String, Object> corpo = corpoValido();
+        Map<String, Object> excessivo = setor("Plateia", "150.00", 25, 20);
+        excessivo.put("benefits", List.of("a", "b", "c", "d", "e", "f", "g"));
+        corpo.put("sectors", List.of(excessivo));
+
+        // O CHECK da migration recusaria do mesmo jeito, mas com 500 sobre algo que o usuario
+        // digitou, e a mensagem falaria de constraint em vez de falar de beneficio.
+        mockMvc.perform(criar(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields['sectors[0].benefits']").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("publicado, o evento ainda aceita corrigir beneficio e faixa do setor")
+    void deveAlterarApresentacaoDoSetorDepoisDePublicado() throws Exception {
+        String id = publicarEObterId();
+
+        // Esta e a razao de a comparacao olhar so a planta. Beneficio e texto de vitrine: nao
+        // muda o lugar de ninguem que ja comprou, e tranca-lo na publicacao faria um erro de
+        // digitacao virar permanente.
+        Map<String, Object> alteracao = corpoValido();
+        Map<String, Object> mesmoTamanho = setor("Plateia", "150.00", 25, 20);
+        mesmoTamanho.put("description", "Piso principal, de frente para o palco.");
+        mesmoTamanho.put("benefits", List.of("Programa impresso"));
+        mesmoTamanho.put("tier", "VIP");
+        alteracao.put("sectors", List.of(mesmoTamanho));
+
+        mockMvc.perform(put("/admin/events/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(alteracao)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sectors[0].benefits[0]").value("Programa impresso"))
+                .andExpect(jsonPath("$.sectors[0].tier").value("VIP"));
+    }
+
+    @Test
+    @DisplayName("publicado, mexer na planta junto do beneficio continua sendo 409")
+    void apresentacaoNovaNaoDeveLiberarMudancaDePlanta() throws Exception {
+        String id = publicarEObterId();
+
+        // Guarda contra a brecha que a divisao poderia abrir: um beneficio novo no mesmo corpo
+        // nao pode servir de carona para encolher a casa.
+        Map<String, Object> alteracao = corpoValido();
+        Map<String, Object> menor = setor("Plateia", "150.00", 12, 20);
+        menor.put("benefits", List.of("Programa impresso"));
+        alteracao.put("sectors", List.of(menor));
+
+        mockMvc.perform(put("/admin/events/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, autorizacaoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(alteracao)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("EVENT_LAYOUT_LOCKED"));
+    }
+
+    @Test
+    @DisplayName("categoria ausente na criacao devolve 400")
+    void deveExigirCategoria() throws Exception {
+        Map<String, Object> corpo = corpoValido();
+        corpo.remove("category");
+
+        mockMvc.perform(criar(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.category").isNotEmpty());
+    }
+
     // ---------- auxiliares ----------
 
     private Map<String, Object> corpoValido() {
@@ -358,6 +461,7 @@ class AdminEventCrudIntegrationTest {
         corpo.put("description", "Uma noite inesquecivel");
         corpo.put("venue", "Estadio Municipal");
         corpo.put("eventDate", Instant.now().plus(30, ChronoUnit.DAYS).toString());
+        corpo.put("category", "SHOWS");
         // 25 filas de 20 lugares = 500, a mesma capacidade que estes testes usavam quando ela
         // era um inteiro solto no corpo. Capacidade e preco nao vem mais na requisicao: sao
         // derivados dos setores pelo servidor.

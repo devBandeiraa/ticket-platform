@@ -2,6 +2,8 @@ package com.devbandeiraa.eventservice.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -10,8 +12,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Um setor da casa: Plateia, Balcao, Camarote.
@@ -63,23 +68,38 @@ public class Sector {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
+    /** Texto corrido, opcional. Nulo quando o nome e o preco ja dizem o que ha para dizer. */
+    @Column(columnDefinition = "text")
+    private String description;
+
+    /**
+     * Rotulos curtos do que o setor da alem do lugar: "Entrada exclusiva", "Open bar".
+     *
+     * <p>Array nativo do PostgreSQL, e nao tabela filha. Sao dois a cinco textos sem identidade
+     * propria, cuja unica propriedade relevante e a ordem; uma colecao mapeada traria join na
+     * leitura e o par delete-insert na escrita, dentro do mesmo flush em que este setor esta
+     * sendo atualizado no lugar por {@link #redefinir}. Ver a nota na migration {@code V4}.
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
+    private List<String> benefits = List.of();
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SectorTier tier;
+
     /** Exigido pelo JPA. Nao usar diretamente. */
     protected Sector() {
     }
 
-    private Sector(Event event, String name, BigDecimal price, int rowsCount, int seatsPerRow,
-                   int displayOrder) {
+    private Sector(Event event, LayoutDeSetor descricao, int displayOrder) {
         this.event = event;
-        this.name = name;
-        this.price = price;
-        this.rowsCount = rowsCount;
-        this.seatsPerRow = seatsPerRow;
-        this.displayOrder = displayOrder;
+        this.name = descricao.name();
+        redefinir(descricao, displayOrder);
     }
 
-    public static Sector de(Event event, String name, BigDecimal price, int rowsCount,
-                            int seatsPerRow, int displayOrder) {
-        return new Sector(event, name, price, rowsCount, seatsPerRow, displayOrder);
+    public static Sector de(Event event, LayoutDeSetor descricao, int displayOrder) {
+        return new Sector(event, descricao, displayOrder);
     }
 
     /**
@@ -89,11 +109,31 @@ public class Sector {
      * delete-insert: dentro do mesmo flush o Hibernate emite os INSERT antes dos DELETE, e
      * recriar um setor com um nome que ainda esta na tabela viola {@code uk_sectors_nome}.
      */
-    void redefinir(BigDecimal price, int rowsCount, int seatsPerRow, int displayOrder) {
-        this.price = price;
-        this.rowsCount = rowsCount;
-        this.seatsPerRow = seatsPerRow;
+    void redefinir(LayoutDeSetor descricao, int displayOrder) {
         this.displayOrder = displayOrder;
+        this.price = descricao.price();
+        this.rowsCount = descricao.rowsCount();
+        this.seatsPerRow = descricao.seatsPerRow();
+        redefinirApresentacao(descricao);
+    }
+
+    /**
+     * Atualiza so o que o setor diz de si: texto, beneficios e faixa.
+     *
+     * <p>Separado de {@link #redefinir} porque estes tres campos nao dependem do estado do
+     * evento. Preco e dimensoes so mudam enquanto ha rascunho, porque alteram a casa por baixo
+     * de quem ja comprou; corrigir um erro de digitacao em "Open bar" nao altera lugar nenhum, e
+     * tranca-lo junto tornaria o texto permanente no instante da publicacao.
+     *
+     * <p>O nome fica de fora dos dois: e a chave pela qual {@code Event.aplicarLayout} reconhece
+     * o setor como "o mesmo", entao alterar o nome aqui apagaria a identidade que acabou de ser
+     * usada para encontra-lo.
+     */
+    void redefinirApresentacao(LayoutDeSetor descricao) {
+        this.description = descricao.description();
+        this.tier = descricao.tier();
+        // `descricao.benefits()` ja e copia imutavel, feita no construtor compacto do record.
+        this.benefits = descricao.benefits();
     }
 
     /** Quantos lugares este setor tem. */
@@ -146,6 +186,25 @@ public class Sector {
 
     public int getDisplayOrder() {
         return displayOrder;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    /**
+     * Beneficios do setor, na ordem de exibicao.
+     *
+     * <p>Nunca nulo. Um setor sem beneficio devolve lista vazia, e nao nulo, para quem le nao ter
+     * de distinguir dois casos que significam a mesma coisa. Linhas gravadas antes da migration
+     * {@code V4} tem {@code NULL} na coluna, e e aqui que isso deixa de aparecer.
+     */
+    public List<String> getBenefits() {
+        return benefits == null ? List.of() : List.copyOf(benefits);
+    }
+
+    public SectorTier getTier() {
+        return tier;
     }
 
     @Override

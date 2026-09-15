@@ -85,6 +85,16 @@ public class Event {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    /**
+     * Porta de entrada do catalogo.
+     *
+     * <p>Obrigatoria. Um evento sem categoria so e alcancavel por busca textual, o que exclui
+     * exatamente quem chega sem saber o que procura — e um catalogo existe para esse visitante.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EventCategory category;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private EventStatus status;
@@ -105,12 +115,13 @@ public class Event {
     }
 
     private Event(String name, String description, String venue, Instant eventDate,
-                  String imageUrl, UUID createdBy) {
+                  String imageUrl, EventCategory category, UUID createdBy) {
         this.name = name;
         this.description = description;
         this.venue = venue;
         this.eventDate = eventDate;
         this.imageUrl = imageUrl;
+        this.category = category;
         this.createdBy = createdBy;
         this.status = EventStatus.DRAFT;
     }
@@ -123,8 +134,9 @@ public class Event {
      * metade, e o tipo de erro que so se percebe quando alguem ja comprou.
      */
     public static Event rascunho(String name, String description, String venue, Instant eventDate,
-                                 String imageUrl, UUID createdBy, List<LayoutDeSetor> layout) {
-        Event evento = new Event(name, description, venue, eventDate, imageUrl, createdBy);
+                                 String imageUrl, EventCategory category, UUID createdBy,
+                                 List<LayoutDeSetor> layout) {
+        Event evento = new Event(name, description, venue, eventDate, imageUrl, category, createdBy);
         evento.aplicarLayout(layout);
         return evento;
     }
@@ -173,10 +185,8 @@ public class Event {
                     .filter(setor -> setor.getName().equals(descricao.name()))
                     .findFirst()
                     .ifPresentOrElse(
-                            existente -> existente.redefinir(descricao.price(),
-                                    descricao.rowsCount(), descricao.seatsPerRow(), posicao),
-                            () -> novos.add(Sector.de(this, descricao.name(), descricao.price(),
-                                    descricao.rowsCount(), descricao.seatsPerRow(), posicao)));
+                            existente -> existente.redefinir(descricao, posicao),
+                            () -> novos.add(Sector.de(this, descricao, posicao)));
         }
 
         // Some quem saiu da planta; o orphanRemoval cuida de apaga-los do banco.
@@ -184,6 +194,27 @@ public class Event {
         sectors.addAll(novos);
 
         recalcularDerivados();
+    }
+
+    /**
+     * Atualiza o texto, os beneficios e a faixa dos setores, sem tocar na planta.
+     *
+     * <p>Caminho separado de {@link #aplicarLayout} porque nao depende do estado do evento. A
+     * planta so muda enquanto ha rascunho, pela razao explicada em {@link #podeAlterarLayout};
+     * o que o setor diz de si e apresentacao, e um evento publicado precisa poder corrigir um
+     * beneficio escrito errado sem republicar a casa inteira.
+     *
+     * <p>Casa por nome, e ignora em silencio quem nao encontrar. Chegar aqui com um setor
+     * desconhecido significa que a planta mudou, e nesse caso quem decide e
+     * {@code aplicarLayout} — nao este metodo, que criaria um setor sem capacidade declarada.
+     */
+    public void aplicarApresentacaoDosSetores(List<LayoutDeSetor> layout) {
+        for (LayoutDeSetor descricao : layout) {
+            sectors.stream()
+                    .filter(setor -> setor.getName().equals(descricao.name()))
+                    .findFirst()
+                    .ifPresent(setor -> setor.redefinirApresentacao(descricao));
+        }
     }
 
     /**
@@ -223,12 +254,13 @@ public class Event {
 
     /** Dados de apresentacao. O layout tem caminho proprio — ver {@link #aplicarLayout}. */
     public void alterarDados(String name, String description, String venue, Instant eventDate,
-                             String imageUrl) {
+                             String imageUrl, EventCategory category) {
         this.name = name;
         this.description = description;
         this.venue = venue;
         this.eventDate = eventDate;
         this.imageUrl = imageUrl;
+        this.category = category;
     }
 
     public void publicar() {
@@ -269,6 +301,10 @@ public class Event {
 
     public String getImageUrl() {
         return imageUrl;
+    }
+
+    public EventCategory getCategory() {
+        return category;
     }
 
     /**

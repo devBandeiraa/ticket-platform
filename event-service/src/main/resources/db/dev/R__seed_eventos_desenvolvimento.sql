@@ -57,7 +57,8 @@
 -- ============================================================================
 
 INSERT INTO events (
-    id, name, description, venue, event_date, total_tickets, price, status, image_url, created_by
+    id, name, description, venue, event_date, total_tickets, price, status, image_url, category,
+    created_by
 )
 VALUES
     (
@@ -68,6 +69,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '45 days' + INTERVAL '23 hours',
         1200, 140.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -78,6 +80,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '22 days' + INTERVAL '23 hours',
         400, 140.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -88,6 +91,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '31 days' + INTERVAL '22 hours',
         2400, 180.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -98,6 +102,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '60 days' + INTERVAL '22 hours',
         3000, 320.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -108,6 +113,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '12 days' + INTERVAL '24 hours',
         800, 120.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1503095396549-807759245b35?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -118,6 +124,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '9 days' + INTERVAL '24 hours',
         420, 90.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&h=675&fit=crop&q=80',
+        'TEATRO',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -128,6 +135,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '38 days' + INTERVAL '23 hours',
         1500, 70.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1507924538820-ede94a04019d?w=1200&h=675&fit=crop&q=80',
+        'TEATRO',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -138,6 +146,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '75 days' + INTERVAL '12 hours',
         600, 650.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=1200&h=675&fit=crop&q=80',
+        'TECNOLOGIA',
         '00000000-0000-0000-0000-000000000001'
     ),
     -- Cinquenta lugares, de proposito. E o evento que a demo de concorrencia usa: com
@@ -151,6 +160,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '17 days' + INTERVAL '23 hours',
         50, 95.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     ),
     -- Rascunho: existe no banco e NAO pode aparecer no catalogo publico.
@@ -162,6 +172,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '100 days' + INTERVAL '25 hours',
         2000, 200.00, 'DRAFT',
         'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=1200&h=675&fit=crop&q=80',
+        'FESTIVAIS',
         '00000000-0000-0000-0000-000000000001'
     ),
     -- Cancelado: idem. Serve tambem para a listagem administrativa ter os tres status.
@@ -173,6 +184,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '50 days' + INTERVAL '23 hours',
         800, 150.00, 'CANCELLED',
         'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?w=1200&h=675&fit=crop&q=80',
+        'SHOWS',
         '00000000-0000-0000-0000-000000000001'
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -183,6 +195,7 @@ ON CONFLICT (id) DO UPDATE SET
     price         = EXCLUDED.price,
     status        = EXCLUDED.status,
     image_url     = EXCLUDED.image_url,
+    category      = EXCLUDED.category,
     updated_at    = NOW();
 -- A data NAO entra no UPDATE: recalcula-la a cada execucao empurraria o evento para a frente
 -- toda vez que este arquivo mudasse, e uma reserva feita ontem passaria a apontar para um show
@@ -209,45 +222,78 @@ DELETE FROM sectors WHERE event_id IN (
     '10000000-0000-0000-0000-00000000000b'
 );
 
-INSERT INTO sectors (id, event_id, name, price, rows_count, seats_per_row, display_order)
+INSERT INTO sectors (
+    id, event_id, name, price, rows_count, seats_per_row, display_order, description, benefits, tier
+)
 VALUES
     -- Aurora Coletiva: 780 + 420 = 1200
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000001', 'Plateia',       220.00, 30, 26, 0),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000001', 'Balcao',        140.00, 15, 28, 1),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000001', 'Plateia', 220.00, 30, 26, 0,
+     'Piso principal, de frente para o palco menor onde acontece o encerramento acustico.',
+     NULL, 'STANDARD'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000001', 'Balcao', 140.00, 15, 28, 1,
+     'Nivel superior, com vista aberta dos dois palcos.', NULL, 'STANDARD'),
 
     -- Marulho: 400
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000002', 'Plateia',       140.00, 20, 20, 0),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000002', 'Plateia', 140.00, 20, 20, 0,
+     'Casa unica, sem divisao de setor.', NULL, 'STANDARD'),
 
     -- Vera Lumina: 1200 + 900 + 300 = 2400
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000003', 'Plateia Baixa', 340.00, 40, 30, 0),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000003', 'Plateia Alta',  240.00, 30, 30, 1),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000003', 'Mezanino',      180.00, 15, 20, 2),
+    --
+    -- Plateia Baixa e o setor mais caro do evento e fica STANDARD de proposito: e so a melhor
+    -- posicao, sem nada atrelado. E o caso que justifica `tier` ser coluna e nao o maior preco.
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000003', 'Plateia Baixa', 340.00, 40, 30, 0,
+     'Primeiras quarenta filas, dentro do alcance das projecoes.', NULL, 'STANDARD'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000003', 'Plateia Alta', 240.00, 30, 30, 1,
+     'Fundo do piso principal, em nivel elevado.', NULL, 'STANDARD'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000003', 'Mezanino', 180.00, 15, 20, 2,
+     NULL, NULL, 'STANDARD'),
 
     -- Cassiano Rios: 2000 + 400 + 600 = 3000
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000004', 'Plateia',       450.00, 50, 40, 0),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000004', 'Camarote',      680.00, 10, 40, 1),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000004', 'Balcao Nobre',  320.00, 20, 30, 2),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000004', 'Plateia', 450.00, 50, 40, 0,
+     'Piso principal.', NULL, 'STANDARD'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000004', 'Camarote', 680.00, 10, 40, 1,
+     'Cabines laterais com mesa, para grupos de ate quatro.',
+     ARRAY['Entrada exclusiva', 'Servico de bar na mesa', 'Estacionamento no local'], 'VIP'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000004', 'Balcao Nobre', 320.00, 20, 30, 2,
+     'Primeiro nivel acima da plateia, de frente para o palco.', NULL, 'STANDARD'),
 
     -- Quarteto Sonora: 800
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000005', 'Plateia',       120.00, 32, 25, 0),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000005', 'Plateia', 120.00, 32, 25, 0,
+     'Sala em formato de concerto, com acustica projetada para musica de camara.',
+     NULL, 'STANDARD'),
 
     -- Rita Valadao: 420
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000006', 'Plateia',        90.00, 21, 20, 0),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000006', 'Plateia', 90.00, 21, 20, 0,
+     NULL, NULL, 'STANDARD'),
 
     -- O Jardim de Inverno: 1000 + 150 + 350 = 1500
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000007', 'Plateia',       180.00, 40, 25, 0),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000007', 'Frisas',        240.00, 10, 15, 1),
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000007', 'Galeria',        70.00, 14, 25, 2),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000007', 'Plateia', 180.00, 40, 25, 0,
+     'Piso principal, com a trilha executada ao vivo na lateral direita.', NULL, 'STANDARD'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000007', 'Frisas', 240.00, 10, 15, 1,
+     'Cabines proximas ao palco, com entrada separada.',
+     ARRAY['Entrada pelo foyer nobre', 'Programa impresso'], 'VIP'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000007', 'Galeria', 70.00, 14, 25, 2,
+     'Nivel mais alto da casa. Vista completa do palco, distancia maior.', NULL, 'STANDARD'),
 
     -- Distribuida 2026: 600
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000008', 'Auditorio',     650.00, 30, 20, 0),
+    --
+    -- Setor unico, STANDARD, e ainda assim com beneficios: numa conferencia eles valem para
+    -- todo mundo. E o caso que mostra que `benefits` e `tier` sao independentes — beneficio nao
+    -- implica faixa diferenciada, e faixa diferenciada nao implica lista de beneficios.
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000008', 'Auditorio', 650.00, 30, 20, 0,
+     'Dia inteiro, palestras de manha e oficinas a tarde.',
+     ARRAY['Coffee break', 'Certificado de participacao', 'Gravacao das palestras'], 'STANDARD'),
 
-    -- Orquestra de Camara: 50 — o evento da demo de concorrencia
-    (gen_random_uuid(), '10000000-0000-0000-0000-000000000009', 'Plateia',        95.00,  5, 10, 0),
+    -- Orquestra de Camara da Lapa: 50
+    (gen_random_uuid(), '10000000-0000-0000-0000-000000000009', 'Plateia', 95.00, 5, 10, 0,
+     'Cinquenta lugares, em cinco filas de dez.', NULL, 'STANDARD'),
 
-    -- Virada Aurora (rascunho): 1500 + 500 = 2000
-    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000a', 'Plateia',       320.00, 50, 30, 0),
-    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000a', 'Balcao',        200.00, 25, 20, 1),
+    -- Virada Aurora: 1500 + 500 = 2000
+    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000a', 'Plateia', 320.00, 50, 30, 0,
+     'Programacao em definicao.', NULL, 'STANDARD'),
+    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000a', 'Balcao', 200.00, 25, 20, 1,
+     NULL, NULL, 'STANDARD'),
 
-    -- Noite Rubra (cancelado): 800
-    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000b', 'Plateia',       150.00, 40, 20, 0);
+    -- Noite Rubra: 800
+    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000b', 'Plateia', 150.00, 40, 20, 0,
+     NULL, NULL, 'STANDARD');
