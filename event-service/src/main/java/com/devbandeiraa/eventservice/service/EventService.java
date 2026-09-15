@@ -1,6 +1,7 @@
 package com.devbandeiraa.eventservice.service;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.domain.EventStatus;
 import com.devbandeiraa.eventservice.domain.LayoutDeSetor;
 import com.devbandeiraa.eventservice.dto.request.EventRequest;
@@ -46,7 +47,7 @@ public class EventService {
      */
     @Transactional(readOnly = true)
     public PaginaResponse<EventSummaryResponse> listarPublicados(
-            String busca, Instant de, Instant ate, Pageable pageable) {
+            String busca, EventCategory categoria, Instant de, Instant ate, Pageable pageable) {
 
         // Cada filtro so entra na consulta quando de fato veio preenchido. Alem de gerar um SQL
         // mais enxuto, evita o problema de tipagem do bind nulo no PostgreSQL — ver a nota em
@@ -56,6 +57,9 @@ public class EventService {
         String termo = normalizarBusca(busca);
         if (termo != null) {
             filtro = filtro.and(EventSpecifications.comNomeContendo(termo));
+        }
+        if (categoria != null) {
+            filtro = filtro.and(EventSpecifications.naCategoria(categoria));
         }
         if (de != null) {
             filtro = filtro.and(EventSpecifications.aPartirDe(de));
@@ -100,6 +104,7 @@ public class EventService {
                 requisicao.venue(),
                 requisicao.eventDate(),
                 requisicao.imageUrl(),
+                requisicao.category(),
                 adminId,
                 layoutDe(requisicao));
 
@@ -116,16 +121,25 @@ public class EventService {
      * rascunho. Publicado, ele pode ter reservas, e o booking-service ja copiou a capacidade
      * para o lado dele — mexer nos setores aqui mudaria a casa por baixo de quem ja comprou.
      *
-     * <p>O layout enviado e comparado com o atual, e a recusa so acontece se ele de fato mudou.
-     * Sem essa comparacao, editar apenas a descricao de um evento publicado seria recusado: o
-     * mesmo record carrega os dois assuntos, e a tela reenvia os setores inalterados junto.
+     * <p>O layout enviado e comparado com o atual, e a recusa so acontece se a PLANTA de fato
+     * mudou. Sem essa comparacao, editar apenas a descricao de um evento publicado seria
+     * recusado: o mesmo record carrega os dois assuntos, e a tela reenvia os setores inalterados
+     * junto.
+     *
+     * <p>Planta igual nao significa nada a fazer. Texto, beneficios e faixa do setor tambem
+     * chegam nesse mesmo record e nao alteram lugar de ninguem, entao seguem editaveis depois da
+     * publicacao — ver {@code mesmaPlanta} para o que entra em cada lado da divisao.
      */
     @Transactional
     public EventDetailResponse alterar(UUID id, EventRequest requisicao) {
         Event evento = carregarAlteravel(id);
 
         List<LayoutDeSetor> novoLayout = layoutDe(requisicao);
-        if (!mesmoLayout(novoLayout, layoutAtualDe(evento))) {
+        if (mesmaPlanta(novoLayout, layoutAtualDe(evento))) {
+            // Planta intacta: o que pode ter mudado e o que o setor diz de si, e isso nao
+            // depende de o evento estar publicado. Ver Event.aplicarApresentacaoDosSetores.
+            evento.aplicarApresentacaoDosSetores(novoLayout);
+        } else {
             if (!evento.podeAlterarLayout()) {
                 throw new LayoutNaoAlteravelException(id);
             }
@@ -137,7 +151,8 @@ public class EventService {
                 requisicao.description(),
                 requisicao.venue(),
                 requisicao.eventDate(),
-                requisicao.imageUrl());
+                requisicao.imageUrl(),
+                requisicao.category());
 
         log.info("evento alterado: id={}", id);
         return EventDetailResponse.de(evento);
@@ -179,7 +194,8 @@ public class EventService {
     private static List<LayoutDeSetor> layoutDe(EventRequest requisicao) {
         return requisicao.sectors().stream()
                 .map(setor -> new LayoutDeSetor(
-                        setor.name(), setor.price(), setor.rowsCount(), setor.seatsPerRow()))
+                        setor.name(), setor.price(), setor.rowsCount(), setor.seatsPerRow(),
+                        setor.description(), setor.benefits(), setor.tier()))
                 .toList();
     }
 
@@ -187,12 +203,18 @@ public class EventService {
         return evento.getSectors().stream()
                 .map(setor -> new LayoutDeSetor(
                         setor.getName(), setor.getPrice(), setor.getRowsCount(),
-                        setor.getSeatsPerRow()))
+                        setor.getSeatsPerRow(), setor.getDescription(), setor.getBenefits(),
+                        setor.getTier()))
                 .toList();
     }
 
     /**
      * Compara dois layouts campo a campo.
+     *
+     * <p>Compara a PLANTA: nome, dimensoes e preco. Descricao, beneficios e faixa ficam de fora
+     * de proposito — sao apresentacao, nao alteram lugar de ninguem, e entram por
+     * {@code aplicarApresentacaoDosSetores}, que vale tambem para evento publicado. Inclui-los
+     * aqui faria um erro de digitacao em "Open bar" virar permanente no instante da publicacao.
      *
      * <p>Nao usa o {@code equals} do record, e a razao e o preco: {@code BigDecimal.equals} leva
      * a escala em conta, entao {@code 180.00} vindo do banco e {@code 180.0} vindo do JSON seriam
@@ -200,7 +222,7 @@ public class EventService {
      * {@code 409} por um layout que ninguem mudou — e o mesmo record carrega os dois assuntos,
      * entao a tela reenvia os setores junto de qualquer edicao. {@code compareTo} compara valor.
      */
-    private static boolean mesmoLayout(List<LayoutDeSetor> novo, List<LayoutDeSetor> atual) {
+    private static boolean mesmaPlanta(List<LayoutDeSetor> novo, List<LayoutDeSetor> atual) {
         if (novo.size() != atual.size()) {
             return false;
         }

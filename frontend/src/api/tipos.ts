@@ -14,6 +14,24 @@ export type Papel = 'USER' | 'ADMIN'
 
 export type StatusDoEvento = 'DRAFT' | 'PUBLISHED' | 'CANCELLED'
 
+/**
+ * Porta de entrada do catalogo.
+ *
+ * Conjunto fechado, e nao texto livre: com texto, em poucos meses conviveriam 'Show', 'show' e
+ * 'Musica', e o filtro deixaria de filtrar. Um valor fora do conjunto nao chega ate aqui — o
+ * servidor devolve 400 na desserializacao.
+ */
+export type CategoriaDoEvento =
+  | 'SHOWS'
+  | 'FESTIVAIS'
+  | 'ESPORTES'
+  | 'TECNOLOGIA'
+  | 'TEATRO'
+  | 'FESTAS'
+
+/** Faixa de um setor. Nao e derivada do preco: o setor mais caro nem sempre e o VIP. */
+export type FaixaDeSetor = 'STANDARD' | 'VIP'
+
 export type StatusDaReserva = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED'
 
 export interface Tokens {
@@ -48,6 +66,8 @@ export interface EventoResumo {
   totalTickets: number
   /** Capa do evento. Nulo quando ainda nao ha arte — a tela desenha um fundo derivado do nome. */
   imageUrl: string | null
+  /** Vem tambem no resumo porque o cartao do catalogo a exibe como etiqueta. */
+  category: CategoriaDoEvento
 }
 
 /**
@@ -66,6 +86,11 @@ export interface Setor {
   /** Rotulos prontos: 'A', 'B', ... 'AA'. Vem do servidor para as duas pontas nao divergirem. */
   rowLabels: string[]
   capacity: number
+  /** Texto corrido. Nulo quando o nome e o preco ja se explicam. */
+  description: string | null
+  /** Sempre presente, possivelmente vazio. Nunca nulo: a tela percorre sem testar nulidade. */
+  benefits: string[]
+  tier: FaixaDeSetor
 }
 
 export interface EventoDetalhe extends EventoResumo {
@@ -83,6 +108,9 @@ export interface SetorFormulario {
   price: number
   rowsCount: number
   seatsPerRow: number
+  description?: string | null
+  benefits?: string[]
+  tier?: FaixaDeSetor
 }
 
 /**
@@ -98,6 +126,7 @@ export interface EventoFormulario {
   eventDate: string
   sectors: SetorFormulario[]
   imageUrl?: string | null
+  category: CategoriaDoEvento
 }
 
 export interface Disponibilidade {

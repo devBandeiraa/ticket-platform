@@ -1,6 +1,7 @@
 package com.devbandeiraa.eventservice.dto.response;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.domain.EventStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,6 +25,7 @@ public record EventDetailResponse(
         BigDecimal price,
         int totalTickets,
         String imageUrl,
+        EventCategory category,
         List<SectorResponse> sectors,
         EventStatus status,
         UUID createdBy,
@@ -40,6 +42,7 @@ public record EventDetailResponse(
                 evento.getPrice(),
                 evento.getTotalTickets(),
                 evento.getImageUrl(),
+                evento.getCategory(),
                 evento.getSectors().stream().map(SectorResponse::de).toList(),
                 evento.getStatus(),
                 evento.getCreatedBy(),

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devbandeiraa.eventservice.domain.Event;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.domain.EventStatus;
 import com.devbandeiraa.eventservice.domain.LayoutDeSetor;
 import com.devbandeiraa.eventservice.dto.request.EventRequest;
@@ -159,7 +160,9 @@ class EventServiceTest {
                 "Uma noite inesquecivel",
                 "Estadio Municipal",
                 Instant.now().plus(30, ChronoUnit.DAYS),
-                List.of(new SectorRequest("Plateia", new BigDecimal("150.00"), 25, 20)),
+                EventCategory.SHOWS,
+                List.of(new SectorRequest("Plateia", new BigDecimal("150.00"), 25, 20,
+                        null, null, null)),
                 "https://cdn.exemplo.test/capas/show-de-rock.jpg");
     }
 
@@ -170,7 +173,9 @@ class EventServiceTest {
                 "Estadio Municipal",
                 Instant.now().plus(30, ChronoUnit.DAYS),
                 "https://cdn.exemplo.test/capas/show-de-rock.jpg",
+                EventCategory.SHOWS,
                 ID_DO_ADMIN,
-                List.of(new LayoutDeSetor("Plateia", new BigDecimal("150.00"), 25, 20)));
+                List.of(new LayoutDeSetor("Plateia", new BigDecimal("150.00"), 25, 20,
+                        null, null, null)));
     }
 }

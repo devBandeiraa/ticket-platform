@@ -1,5 +1,6 @@
 package com.devbandeiraa.eventservice.dto.request;
 
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -28,6 +29,8 @@ import java.util.List;
  * @param eventDate exigido no futuro: cadastrar um evento que ja aconteceu so pode ser engano
  *                  de digitacao, e aceita-lo colocaria no catalogo algo impossivel de vender
  * @param sectors   a planta da casa; so pode ser alterada enquanto o evento e rascunho
+ * @param category  porta de entrada do catalogo; obrigatoria porque um evento sem ela so e
+ *                  alcancavel por busca textual, e busca textual exige ja saber o que procurar
  */
 public record EventRequest(
 
@@ -45,6 +48,12 @@ public record EventRequest(
         @NotNull(message = "A data do evento e obrigatoria")
         @Future(message = "A data do evento deve estar no futuro")
         Instant eventDate,
+
+        // Enum e nao texto livre: com texto, em poucos meses conviveriam "Show", "show",
+        // "Shows" e "Musica", e o filtro do catalogo deixaria de filtrar. Um valor fora do
+        // conjunto vira 400 na desserializacao, antes de chegar a validacao.
+        @NotNull(message = "A categoria e obrigatoria")
+        EventCategory category,
 
         @NotEmpty(message = "O evento precisa de ao menos um setor")
         @Size(max = 20, message = "Um evento pode ter no maximo 20 setores")

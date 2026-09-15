@@ -1,6 +1,7 @@
 package com.devbandeiraa.eventservice.dto.response;
 
 import com.devbandeiraa.eventservice.domain.Sector;
+import com.devbandeiraa.eventservice.domain.SectorTier;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +22,9 @@ import java.util.stream.IntStream;
  *                  diferentes para a mesma fila
  * @param capacity  {@code rowsCount * seatsPerRow}, calculado aqui para o cliente nao repetir a
  *                  multiplicacao e eventualmente erra-la
+ * @param benefits  sempre presente, possivelmente vazio. Nunca nulo: a tela percorre a lista
+ *                  sem antes testar nulidade, e setores gravados antes da migration {@code V4}
+ *                  tem NULL na coluna
  */
 public record SectorResponse(
         UUID id,
@@ -29,7 +33,10 @@ public record SectorResponse(
         int rowsCount,
         int seatsPerRow,
         List<String> rowLabels,
-        int capacity) {
+        int capacity,
+        String description,
+        List<String> benefits,
+        SectorTier tier) {
 
     public static SectorResponse de(Sector setor) {
         return new SectorResponse(
@@ -41,6 +48,9 @@ public record SectorResponse(
                 IntStream.range(0, setor.getRowsCount())
                         .mapToObj(Sector::rotuloDaFila)
                         .toList(),
-                setor.getCapacidade());
+                setor.getCapacidade(),
+                setor.getDescription(),
+                setor.getBenefits(),
+                setor.getTier());
     }
 }

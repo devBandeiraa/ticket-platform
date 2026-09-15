@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.devbandeiraa.eventservice.config.SecurityConfig;
 import com.devbandeiraa.eventservice.controller.AdminEventController;
+import com.devbandeiraa.eventservice.domain.EventCategory;
 import com.devbandeiraa.eventservice.domain.EventStatus;
 import com.devbandeiraa.eventservice.dto.response.EventDetailResponse;
 import com.devbandeiraa.eventservice.exception.GlobalExceptionHandler;
@@ -185,7 +186,8 @@ class AdminEventControllerWebMvcTest {
         return new EventDetailResponse(
                 UUID.randomUUID(), "Show de Rock", "Uma noite inesquecivel", "Teatro Municipal",
                 Instant.now().plus(30, ChronoUnit.DAYS), new BigDecimal("150.00"), 500, null,
-                List.of(), EventStatus.DRAFT, UUID.randomUUID(), Instant.now(), Instant.now());
+                EventCategory.SHOWS, List.of(), EventStatus.DRAFT, UUID.randomUUID(),
+                Instant.now(), Instant.now());
     }
 
     // ---------- auxiliares ----------
@@ -196,6 +198,7 @@ class AdminEventControllerWebMvcTest {
         corpo.put("description", "Uma noite inesquecivel");
         corpo.put("venue", "Teatro Municipal");
         corpo.put("eventDate", Instant.now().plus(30, ChronoUnit.DAYS).toString());
+        corpo.put("category", "SHOWS");
         corpo.put("sectors", List.of(setor("Plateia", new BigDecimal("150.00"), 25, 20)));
         corpo.put("imageUrl", "https://cdn.exemplo.test/capa.jpg");
         return corpo;

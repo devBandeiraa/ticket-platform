@@ -79,7 +79,7 @@ class SeedDeEventosIntegrationTest {
                 .contains(EventStatus.DRAFT, EventStatus.CANCELLED, EventStatus.PUBLISHED);
 
         PaginaResponse<EventSummaryResponse> catalogo =
-                eventService.listarPublicados(null, null, null, PageRequest.of(0, 100));
+                eventService.listarPublicados(null, null, null, null, PageRequest.of(0, 100));
 
         long publicados = eventRepository.findAll().stream()
                 .filter(evento -> evento.getStatus() == EventStatus.PUBLISHED)

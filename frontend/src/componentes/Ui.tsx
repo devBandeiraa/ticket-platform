@@ -1,4 +1,9 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+} from 'react'
 import type { StatusDaReserva, StatusDoEvento } from '../api/tipos'
 
 /*
@@ -54,6 +59,32 @@ export function Campo({
           erro ? 'border-erro' : 'border-borda hover:border-borda-clara'
         } ${className}`}
       />
+      {erro && <span className="mt-1 block animate-surgir text-xs text-erro">{erro}</span>}
+    </label>
+  )
+}
+
+export function Selecao({
+  rotulo,
+  erro,
+  className = '',
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & { rotulo: string; erro?: string }) {
+  return (
+    <label className="group block">
+      <span className="mb-1.5 block text-sm text-suave transition-colors group-focus-within:text-marca">
+        {rotulo}
+      </span>
+      <select
+        {...props}
+        aria-invalid={erro ? true : undefined}
+        className={`w-full rounded-md border bg-fundo/60 px-3 py-2 text-sm outline-none transition-colors focus:border-marca focus:bg-fundo ${
+          erro ? 'border-erro' : 'border-borda hover:border-borda-clara'
+        } ${className}`}
+      >
+        {children}
+      </select>
       {erro && <span className="mt-1 block animate-surgir text-xs text-erro">{erro}</span>}
     </label>
   )
