@@ -27,8 +27,8 @@ export function Botao({
     // O brilho so existe no estado normal: no hover ele cresce, e no disabled a regra de
     // opacidade ja apaga o botao inteiro.
     primario:
-      'bg-marca text-fundo shadow-lg shadow-marca/20 hover:bg-marca-forte hover:shadow-xl hover:shadow-marca/30',
-    neutro: 'border border-borda text-texto hover:border-borda-clara hover:bg-superficie',
+      'bg-marca text-superficie shadow-lg shadow-marca/20 hover:bg-marca-forte hover:shadow-xl hover:shadow-marca/30',
+    neutro: 'border border-borda text-texto hover:border-borda-forte hover:bg-superficie',
     perigo: 'border border-erro/50 text-erro hover:border-erro hover:bg-erro/10',
   }[variante]
 
@@ -55,8 +55,8 @@ export function Campo({
         {...props}
         // aria-invalid deixa o erro perceptivel para leitor de tela, e nao so pela cor da borda.
         aria-invalid={erro ? true : undefined}
-        className={`w-full rounded-md border bg-fundo/60 px-3 py-2 text-sm outline-none transition-colors focus:border-marca focus:bg-fundo ${
-          erro ? 'border-erro' : 'border-borda hover:border-borda-clara'
+        className={`w-full rounded-md border bg-papel/60 px-3 py-2 text-sm outline-none transition-colors focus:border-marca focus:bg-papel ${
+          erro ? 'border-erro' : 'border-borda hover:border-borda-forte'
         } ${className}`}
       />
       {erro && <span className="mt-1 block animate-surgir text-xs text-erro">{erro}</span>}
@@ -79,8 +79,8 @@ export function Selecao({
       <select
         {...props}
         aria-invalid={erro ? true : undefined}
-        className={`w-full rounded-md border bg-fundo/60 px-3 py-2 text-sm outline-none transition-colors focus:border-marca focus:bg-fundo ${
-          erro ? 'border-erro' : 'border-borda hover:border-borda-clara'
+        className={`w-full rounded-md border bg-papel/60 px-3 py-2 text-sm outline-none transition-colors focus:border-marca focus:bg-papel ${
+          erro ? 'border-erro' : 'border-borda hover:border-borda-forte'
         } ${className}`}
       >
         {children}
@@ -116,7 +116,7 @@ export function Cartao({
 
   return (
     <div
-      className={`vidro rounded-xl border border-borda ${preenchimento} ${resposta} ${className}`}
+      className={`rounded-cartao border border-borda bg-superficie ${preenchimento} ${resposta} ${className}`}
     >
       {children}
     </div>

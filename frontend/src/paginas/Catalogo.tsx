@@ -83,9 +83,9 @@ export function Catalogo() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome ou local"
-            className="w-56 rounded-md border border-borda bg-superficie/60 px-3 py-2 text-sm outline-none transition-colors hover:border-borda-clara focus:border-marca"
+            className="w-56 rounded-md border border-borda bg-superficie/60 px-3 py-2 text-sm outline-none transition-colors hover:border-borda-forte focus:border-marca"
           />
-          <button className="rounded-md bg-marca px-4 py-2 text-sm font-medium text-fundo transition-all duration-200 hover:bg-marca-forte active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca">
+          <button className="rounded-md bg-marca px-4 py-2 text-sm font-medium text-superficie transition-all duration-200 hover:bg-marca-forte active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca">
             Buscar
           </button>
         </form>

@@ -9,7 +9,7 @@ import { ErroDaApi } from '../api/cliente'
  * some e empurra tudo, e o resultado e um solavanco a cada requisicao.
  */
 export function Esqueleto({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-superficie ${className}`} />
+  return <div className={`animate-pulse rounded-md bg-esqueleto ${className}`} />
 }
 
 /** Esqueleto no formato dos cartoes do catalogo. */
@@ -17,7 +17,7 @@ export function EsqueletoDeCartoes({ quantos = 6 }: { quantos?: number }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: quantos }, (_, i) => (
-        <div key={i} className="vidro overflow-hidden rounded-xl border border-borda">
+        <div key={i} className="overflow-hidden rounded-cartao border border-borda bg-superficie">
           {/* Mesma proporcao da capa do cartao. Um esqueleto sem ela devolveria o solavanco
               que ele existe para evitar, agora na altura de uma imagem inteira. */}
           <Esqueleto className="aspect-[16/9] w-full rounded-none" />

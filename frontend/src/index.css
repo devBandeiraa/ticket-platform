@@ -1,28 +1,99 @@
 @import 'tailwindcss';
 
 /*
-  Tema em variaveis, e nao classes repetidas pelas telas: a paleta muda num lugar so.
-  Fundo escuro por escolha — a maior parte das telas mostra numero e status, e o contraste
-  alto ajuda a leitura rapida do painel.
+  ============================================================================
+   Identidade: papel claro, faixas de noite, tinta de cortina.
+  ============================================================================
+
+  Ate a Fase 24 a aplicacao inteira era escura, com um ceu estrelado por tras de
+  cartoes de vidro. A troca tem um motivo: o produto passou a ter areas de
+  LEITURA — descricao de evento, checkout, ingresso — e texto corrido se le
+  melhor sobre papel. O escuro nao sumiu; ficou onde ele trabalha, que e o hero,
+  o rodape, o mapa de assentos e as telas tecnicas.
+
+  Duas familias de token, entao:
+
+    papel, superficie, texto, suave, borda    -> areas claras, a maior parte
+    noite, noite-*                            -> faixas escuras estrategicas
+
+  Cada cor de estado tem as duas versoes, porque a mesma mensagem de erro
+  aparece num formulario claro e sobre a faixa escura do hero. Uma so nao
+  atende as duas, e escolher a media deixa as duas ruins.
+
+  ----------------------------------------------------------------------------
+   Sobre o vermelho ser a cor da marca
+  ----------------------------------------------------------------------------
+  A marca e um vinho de cortina, `oklch(0.4 0.16 20)`. Isso colide com a
+  convencao de vermelho para erro, e a colisao foi medida: com a marca e o erro
+  no mesmo matiz, o contraste ENTRE as duas era 1.12:1 — indistinguiveis lado a
+  lado.
+
+  A separacao possivel, respeitando 4.5:1 de cada uma sobre papel, e 2.04:1. E
+  pouco. Por isso o erro nao depende so da cor: aparece sempre com marcador de
+  forma e texto, nunca como superficie preenchida, enquanto a marca preenche
+  botao e quase nunca e texto pequeno. E o mesmo principio ja usado em
+  `.assento-ocupado` — cor sozinha nao distingue estado.
+
+  Todos os pares abaixo foram conferidos por script contra a formula de
+  contraste da WCAG. Os numeros estao anotados; se alguem mexer numa cor, o
+  numero ao lado deixa de valer e precisa ser recalculado, nao ajustado no olho.
 */
 @theme {
-  --color-fundo: oklch(0.16 0.015 265);
-  --color-superficie: oklch(0.21 0.018 265);
-  --color-borda: oklch(0.31 0.02 265);
-  --color-texto: oklch(0.95 0.005 265);
-  --color-suave: oklch(0.68 0.015 265);
+  /* --- areas claras --- */
 
-  --color-marca: oklch(0.68 0.17 255);
-  --color-marca-forte: oklch(0.6 0.19 255);
+  /* Papel levemente quente. Branco puro no fundo inteiro cansa em tela grande. */
+  --color-papel: oklch(0.97 0.006 70);
+  /* Cartao sobre o papel: quase branco, so o suficiente para destacar. */
+  --color-superficie: oklch(0.995 0.002 70);
+  --color-texto: oklch(0.22 0.012 40); /* 15.91:1 sobre papel */
+  --color-suave: oklch(0.5 0.012 40); /*  5.52:1 sobre papel */
 
-  --color-ok: oklch(0.72 0.16 155);
-  --color-alerta: oklch(0.78 0.15 85);
-  --color-erro: oklch(0.66 0.19 25);
+  /* Divisoria decorativa. Fica em 1.28:1 de proposito — e um fio, nao um limite
+     de componente, e a WCAG 1.4.11 nao se aplica a ele. */
+  --color-borda: oklch(0.89 0.006 70);
+  /* Limite de componente: contorno de campo, de botao vazado, de assento.
+     3.62:1, acima dos 3:1 que a WCAG 1.4.11 exige para elemento nao textual. */
+  --color-borda-forte: oklch(0.6 0.01 60);
 
-  /* Superficie translucida das telas que ficam sobre o ceu estrelado. O fundo precisa
-     aparecer por tras do cartao, ou o ceu vira uma moldura em volta de caixas opacas. */
-  --color-superficie-vidro: oklch(0.21 0.018 265 / 0.72);
-  --color-borda-clara: oklch(0.38 0.025 265 / 0.7);
+  /* Preenchimento do esqueleto de carregamento. Token proprio porque ele precisa
+     se distinguir do CARTAO, e nao do fundo da pagina: usar `superficie` deixava
+     um bloco quase branco sobre um cartao quase branco — invisivel. 1.42:1
+     contra o cartao, que e o bastante para uma forma pulsante sem virar mancha. */
+  --color-esqueleto: oklch(0.88 0.006 70);
+
+  /* --- faixas escuras --- */
+
+  --color-noite: oklch(0.175 0.012 30);
+  --color-noite-superficie: oklch(0.235 0.016 30);
+  --color-noite-texto: oklch(0.96 0.004 70); /* 16.91:1 sobre noite */
+  --color-noite-suave: oklch(0.7 0.012 40); /*  7.09:1 sobre noite */
+  --color-noite-borda: oklch(0.34 0.018 30);
+  --color-noite-borda-forte: oklch(0.49 0.015 30); /* 3.01:1 sobre noite */
+  --color-noite-esqueleto: oklch(0.31 0.016 30); /* 1.26:1 sobre noite-superficie */
+
+  /* --- marca --- */
+
+  --color-marca: oklch(0.4 0.16 20); /*  9.18:1 sobre papel */
+  --color-marca-forte: oklch(0.33 0.14 20); /* hover; 12.60:1 com texto claro */
+  /* Sobre a faixa escura o vinho some. Esta e a mesma marca, clareada para
+     continuar visivel la — 7.13:1 sobre noite. */
+  --color-marca-clara: oklch(0.72 0.17 30);
+
+  /* --- estados, nas duas familias --- */
+
+  --color-ok: oklch(0.52 0.13 155); /* 4.73:1 sobre papel */
+  --color-alerta: oklch(0.48 0.13 70); /* 6.14:1 sobre papel */
+  --color-erro: oklch(0.57 0.18 10); /* 4.50:1 sobre papel */
+
+  --color-ok-claro: oklch(0.76 0.15 155); /*  9.41:1 sobre noite */
+  --color-alerta-claro: oklch(0.8 0.13 80); /* 10.05:1 sobre noite */
+  --color-erro-claro: oklch(0.72 0.17 10); /*  7.07:1 sobre noite */
+
+  /* --- forma --- */
+
+  /* Raio moderado: o suficiente para nao parecer planilha, longe do pilulado
+     que envelhece rapido. O ingresso usa o proprio, maior, no recorte. */
+  --radius-cartao: 0.75rem;
 
   --animate-subir: subir 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-surgir: surgir 0.3s ease-out both;
@@ -60,12 +131,9 @@
 }
 
 body {
-  background-color: var(--color-fundo);
+  background-color: var(--color-papel);
   color: var(--color-texto);
   font-family: ui-sans-serif, system-ui, sans-serif;
-  /* O ceu e desenhado num canvas `fixed`; sem isto, rolar a pagina revela o fundo do body
-     por baixo dele nas bordas do overscroll. */
-  overscroll-behavior: none;
 }
 
 /* Numeros que mudam sozinhos — contagem regressiva, contadores da demo — nao podem
@@ -81,32 +149,117 @@ body {
   image-rendering: pixelated;
 }
 
-/* Escurece o ceu na faixa central, onde o conteudo vive. Sem isto, texto pequeno sobre uma
-   estrela clara perde contraste — e contraste aqui nao e gosto, e legibilidade. */
-.ceu-mascarado {
-  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, black 0%, black 35%, transparent 78%);
+/*
+  Faixa escura.
+
+  Um bloco que inverte a familia de cor inteira. Existe como classe, e nao como
+  combinacao de utilitarios repetida em cada secao, porque o conjunto e grande —
+  fundo, texto, borda e as tres cores de estado mudam juntos — e uma faixa que
+  esquecesse uma delas ficaria com texto escuro sobre fundo escuro.
+
+  As variaveis sao reatribuidas dentro do escopo, entao qualquer componente que
+  use `text-texto` ou `border-borda` funciona aqui dentro sem saber onde esta.
+*/
+.faixa-noite {
+  --color-papel: var(--color-noite);
+  --color-superficie: var(--color-noite-superficie);
+  --color-texto: var(--color-noite-texto);
+  --color-suave: var(--color-noite-suave);
+  --color-borda: var(--color-noite-borda);
+  --color-borda-forte: var(--color-noite-borda-forte);
+  --color-esqueleto: var(--color-noite-esqueleto);
+  --color-marca: var(--color-marca-clara);
+  --color-ok: var(--color-ok-claro);
+  --color-alerta: var(--color-alerta-claro);
+  --color-erro: var(--color-erro-claro);
+
+  background-color: var(--color-noite);
+  color: var(--color-noite-texto);
 }
 
-/* Cartao de vidro: deixa o ceu passar sem entregar o conteudo ao ruido do fundo. */
-.vidro {
-  background-color: var(--color-superficie-vidro);
-  backdrop-filter: blur(12px);
+/* Escurece o ceu nas bordas da faixa, onde ele encontra o papel. Sem isto, a
+   transicao entre as duas familias vira uma linha dura de estrelas cortadas. */
+.ceu-mascarado {
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 0%, black 45%, transparent 85%);
 }
 
 /*
-  Quem pediu menos movimento no sistema recebe a interface parada. Regra unica no fim da
-  folha para vencer por especificidade e ordem, em vez de repetir a condicao em cada
-  animacao — uma que escapasse anularia a intencao inteira.
+  Perfuracao do ingresso.
+
+  Linha pontilhada que separa canhoto de corpo, desenhada com gradiente repetido
+  em vez de `border-dashed`: o tracejado do navegador nao permite controlar
+  tamanho nem espacamento, e o ponto aqui precisa parecer furo de picote.
+
+  Duas classes porque a direcao do gradiente nao se deduz da forma do elemento.
+  Um `to right` dentro de uma divisoria de 2px de largura pinta um unico ponto
+  esticado, e o tracejado simplesmente nao aparece — defeito silencioso, porque
+  a regra e valida e o elemento existe.
 */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+.picote-horizontal {
+  background-image: repeating-linear-gradient(
+    to right,
+    currentColor 0,
+    currentColor 3px,
+    transparent 3px,
+    transparent 9px
+  );
+}
+
+.picote-vertical {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    currentColor 0,
+    currentColor 3px,
+    transparent 3px,
+    transparent 9px
+  );
+}
+
+/*
+  Recorte lateral do ingresso.
+
+  Dois semicirculos removidos de verdade, e nao dois circulos pintados da cor do
+  fundo: sobre a faixa escura, sobre uma capa de evento ou sobre qualquer
+  gradiente, o circulo pintado aparece como uma bolha de cor errada. A mascara
+  recorta, entao o que estiver atras passa.
+
+  `mask-composite: intersect` e o que combina as duas mascaras — sem ele, a
+  segunda substitui a primeira e so um dos lados fica recortado. O prefixo
+  `-webkit-` acompanha porque o Safari so implementa a propriedade prefixada, e
+  o valor equivalente la se chama `source-in`.
+
+  O raio e fixo em pixels, e nao percentual: o furo de um picote tem tamanho
+  fisico, e um ingresso largo com furo proporcional pareceria um ingresso
+  pequeno ampliado.
+*/
+.recorte-de-ingresso {
+  --posicao-do-picote: 68%;
+  --raio-do-recorte: 11px;
+
+  -webkit-mask-image:
+    radial-gradient(
+      circle var(--raio-do-recorte) at var(--posicao-do-picote) 0%,
+      transparent 98%,
+      black 100%
+    ),
+    radial-gradient(
+      circle var(--raio-do-recorte) at var(--posicao-do-picote) 100%,
+      transparent 98%,
+      black 100%
+    );
+  mask-image:
+    radial-gradient(
+      circle var(--raio-do-recorte) at var(--posicao-do-picote) 0%,
+      transparent 98%,
+      black 100%
+    ),
+    radial-gradient(
+      circle var(--raio-do-recorte) at var(--posicao-do-picote) 100%,
+      transparent 98%,
+      black 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
 }
 
 /*
@@ -121,8 +274,8 @@ body {
     45deg,
     transparent,
     transparent 3px,
-    var(--color-borda-clara) 3px,
-    var(--color-borda-clara) 4px
+    var(--color-borda-forte) 3px,
+    var(--color-borda-forte) 4px
   );
 }
 
@@ -139,4 +292,20 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-marca);
   outline-offset: 2px;
+}
+
+/*
+  Quem pediu menos movimento no sistema recebe a interface parada. Regra unica no fim da
+  folha para vencer por especificidade e ordem, em vez de repetir a condicao em cada
+  animacao — uma que escapasse anularia a intencao inteira.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
