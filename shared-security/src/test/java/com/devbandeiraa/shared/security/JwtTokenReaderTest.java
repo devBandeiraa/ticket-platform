@@ -108,17 +108,57 @@ class JwtTokenReaderTest {
                 .hasMessageContaining("issuer");
     }
 
+    @Test
+    @DisplayName("extrai o nome do claim `name`")
+    void deveExtrairONome() {
+        String token = construirToken(SEGREDO, EMISSOR, UUID.randomUUID(), "joao@email.com",
+                "USER", Duration.ofMinutes(15), "Joao Silva");
+
+        assertThat(reader.extrairUsuario(token).fullName()).isEqualTo("Joao Silva");
+    }
+
+    @Test
+    @DisplayName("token sem o claim `name` continua valido, com nome nulo")
+    void tokenAntigoDeveContinuarValido() {
+        // Este e o caso do deploy: todo token emitido antes da Fase 23 esta em circulacao sem o
+        // claim. Recusa-lo deslogaria a base inteira por um campo que so serve para escrever um
+        // nome na tela. Quem exibe trata a ausencia, e o proximo refresh resolve de vez.
+        String token = construirToken(SEGREDO, EMISSOR, UUID.randomUUID(), "joao@email.com",
+                "USER", Duration.ofMinutes(15), null);
+
+        AuthenticatedUser usuario = reader.extrairUsuario(token);
+
+        assertThat(usuario.fullName()).isNull();
+        assertThat(usuario.email()).isEqualTo("joao@email.com");
+        assertThat(usuario.role()).isEqualTo(Role.USER);
+    }
+
     private static String construirToken(
             String segredo, String emissor, UUID id, String email, String papel, Duration validade) {
+
+        // Sem o claim `name`, de proposito: e a forma exata dos tokens emitidos antes da Fase 23,
+        // e os demais casos desta classe continuam exercitando esse formato.
+        return construirToken(segredo, emissor, id, email, papel, validade, null);
+    }
+
+    private static String construirToken(
+            String segredo, String emissor, UUID id, String email, String papel,
+            Duration validade, String nome) {
 
         SecretKey chave = Keys.hmacShaKeyFor(segredo.getBytes(StandardCharsets.UTF_8));
         Instant agora = Instant.now();
 
-        return Jwts.builder()
+        var construtor = Jwts.builder()
                 .issuer(emissor)
                 .subject(id.toString())
                 .claim("email", email)
-                .claim("role", papel)
+                .claim("role", papel);
+
+        if (nome != null) {
+            construtor = construtor.claim("name", nome);
+        }
+
+        return construtor
                 .issuedAt(Date.from(agora))
                 .expiration(Date.from(agora.plus(validade)))
                 .signWith(chave, Jwts.SIG.HS256)

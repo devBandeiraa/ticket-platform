@@ -4,6 +4,7 @@ import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.domain.CodigoDeIngresso;
 import com.devbandeiraa.bookingservice.domain.PaymentMethod;
+import com.devbandeiraa.bookingservice.dto.response.MetricasResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -125,6 +126,32 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         return confirmarSePendente(id, agora, comprovante, forma, CodigoDeIngresso.gerar(),
                 BookingStatus.PENDING, BookingStatus.CONFIRMED);
     }
+
+    /**
+     * Agregados de venda, numa unica varredura.
+     *
+     * <p>Consulta nativa por causa do {@code FILTER (WHERE ...)}, que e do PostgreSQL e nao
+     * existe em JPQL. A alternativa portavel seria {@code SUM(CASE WHEN ... THEN 1 ELSE 0 END)}
+     * repetido cinco vezes, mais verboso e mais facil de errar ao ler.
+     *
+     * <p>Uma consulta so, e nao cinco. Cinco varreduras da mesma tabela para responder a mesma
+     * pergunta e o tipo de coisa que passa despercebida com mil reservas e aparece com um
+     * milhao — e o painel e justamente a tela que alguem deixa aberta atualizando.
+     *
+     * <p>Os aliases casam com os getters de {@code AgregadoDeReservas}; o Spring Data monta a
+     * projecao por NOME, entao trocar duas colunas de lugar aqui nao troca os numeros la.
+     */
+    @Query(value = """
+            SELECT COALESCE(SUM(subtotal) FILTER (WHERE status = 'CONFIRMED'), 0) AS receitaDosIngressos,
+                   COALESCE(SUM(fee)      FILTER (WHERE status = 'CONFIRMED'), 0) AS taxaArrecadada,
+                   COALESCE(SUM(quantity) FILTER (WHERE status = 'CONFIRMED'), 0) AS ingressosVendidos,
+                   COUNT(*)                                                       AS reservasCriadas,
+                   COUNT(*) FILTER (WHERE status = 'CONFIRMED')                   AS reservasConfirmadas,
+                   COUNT(*) FILTER (WHERE status = 'EXPIRED')                     AS reservasExpiradas,
+                   COUNT(*) FILTER (WHERE status = 'CANCELLED')                   AS reservasCanceladas
+              FROM bookings
+            """, nativeQuery = true)
+    MetricasResponse.AgregadoDeReservas agregarVendas();
 
     /** Cancelamento pedido pelo usuario. */
     default int cancelar(UUID id) {
