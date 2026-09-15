@@ -5,6 +5,7 @@ import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingSeat;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
+import com.devbandeiraa.bookingservice.domain.PaymentMethod;
 import com.devbandeiraa.bookingservice.dto.request.CreateBookingRequest;
 import com.devbandeiraa.bookingservice.dto.response.BookingResponse;
 import com.devbandeiraa.bookingservice.dto.response.PaginaResponse;
@@ -222,7 +223,7 @@ public class BookingService {
      * o caminho escolhido foi compensar — estornar a cobranca e recusar o pagamento — que resolve
      * o caso concreto sem uma maquina de estados a mais.
      */
-    public BookingResponse pagar(UUID id, AuthenticatedUser solicitante) {
+    public BookingResponse pagar(UUID id, PaymentMethod forma, AuthenticatedUser solicitante) {
         Booking reserva = carregarVisivelPara(id, solicitante);
 
         if (reserva.getStatus() == BookingStatus.CONFIRMED) {
@@ -236,9 +237,11 @@ public class BookingService {
             return recusarPagamento(id);
         }
 
+        // O valor cobrado e o que esta GRAVADO na reserva, taxa inclusa, e nunca um numero
+        // vindo da requisicao. O total foi fechado na criacao e nao se recalcula aqui.
         Autorizacao autorizacao = pagamentoClient.autorizar(id, reserva.getTotalPrice());
 
-        return confirmacaoTransacional.confirmar(id, autorizacao)
+        return confirmacaoTransacional.confirmar(id, autorizacao, forma)
                 .orElseGet(() -> estornarERecusar(id, autorizacao));
     }
 

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.devbandeiraa.bookingservice.client.EventClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
+import com.devbandeiraa.bookingservice.domain.Valores;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
@@ -219,7 +220,7 @@ class ConsultasIntegrationTest {
     private Booking reservaPendente(int quantidade) {
         return transacao.execute(status -> {
             Booking reserva = bookingRepository.saveAndFlush(Booking.pendente(
-                    eventoId, UUID.randomUUID(), quantidade, totalDe(quantidade),
+                    eventoId, UUID.randomUUID(), quantidade, valoresDe(quantidade),
                     Instant.now().plus(10, ChronoUnit.MINUTES), "chave-" + UUID.randomUUID()));
 
             AssentosDeTeste.ocuparPara(assentoRepository, eventoId, quantidade, reserva.getId());
@@ -227,9 +228,16 @@ class ConsultasIntegrationTest {
         });
     }
 
-    /** O total da reserva e a soma dos lugares — nao mais preco unitario vezes quantidade. */
-    private static BigDecimal totalDe(int quantidade) {
-        return PRECO.multiply(BigDecimal.valueOf(quantidade));
+    /**
+     * Os valores da reserva: soma dos lugares, taxa e total.
+     *
+     * <p>Taxa ZERO de proposito. Estes testes verificam ciclo de vida, outbox e consulta, e
+     * nenhum deles tem opiniao sobre taxa. Com zero, o total continua sendo a soma dos lugares e
+     * as assercoes sobre valor seguem valendo o que valiam. Quem exercita a taxa e o teste que
+     * existe para isso.
+     */
+    private static Valores valoresDe(int quantidade) {
+        return Valores.de(PRECO.multiply(BigDecimal.valueOf(quantidade)), BigDecimal.ZERO);
     }
 
 }

@@ -2,6 +2,7 @@ package com.devbandeiraa.bookingservice.service;
 
 import com.devbandeiraa.bookingservice.client.Autorizacao;
 import com.devbandeiraa.bookingservice.domain.Booking;
+import com.devbandeiraa.bookingservice.domain.PaymentMethod;
 import com.devbandeiraa.bookingservice.dto.response.BookingResponse;
 import com.devbandeiraa.bookingservice.exception.ReservaNaoEncontradaException;
 import com.devbandeiraa.bookingservice.messaging.BookingConfirmedEvent;
@@ -70,10 +71,11 @@ public class ConfirmacaoTransacional {
      * @return a reserva confirmada, ou vazio se a transicao nao pode mais acontecer
      */
     @Transactional
-    public Optional<BookingResponse> confirmar(UUID id, Autorizacao autorizacao) {
+    public Optional<BookingResponse> confirmar(UUID id, Autorizacao autorizacao,
+                                              PaymentMethod forma) {
         Instant agora = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
-        if (bookingRepository.confirmar(id, agora, autorizacao.authorizationCode()) == 0) {
+        if (bookingRepository.confirmar(id, agora, autorizacao.authorizationCode(), forma) == 0) {
             return Optional.empty();
         }
 

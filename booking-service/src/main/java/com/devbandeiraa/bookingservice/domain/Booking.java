@@ -49,6 +49,21 @@ public class Booking {
     @Column(nullable = false, updatable = false)
     private int quantity;
 
+    /** Soma dos precos dos lugares tomados, sem a taxa. */
+    @Column(nullable = false, updatable = false, precision = 10, scale = 2)
+    private BigDecimal subtotal;
+
+    /** Taxa de servico sobre o subtotal. Zero quando o percentual configurado e zero. */
+    @Column(nullable = false, updatable = false, precision = 10, scale = 2)
+    private BigDecimal fee;
+
+    /**
+     * O que sera cobrado: {@code subtotal + fee}.
+     *
+     * <p>Mudou de significado na migration {@code V7}. Ate ela era a soma dos lugares, que hoje
+     * mora em {@code subtotal}. As reservas anteriores tem {@code fee = 0} e continuam valendo o
+     * mesmo — o banco guarda a invariante em {@code ck_bookings_total_fecha}.
+     */
     @Column(name = "total_price", nullable = false, updatable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
@@ -69,6 +84,26 @@ public class Booking {
     @Column(name = "payment_authorization", length = 40)
     private String paymentAuthorization;
 
+    /**
+     * Forma escolhida no checkout. Nula enquanto a reserva nao foi paga.
+     *
+     * <p>Tambem nula nas reservas confirmadas antes da migration {@code V7}: elas foram pagas
+     * quando o campo nao existia, e marca-las como {@code CARD} seria registrar como fato algo
+     * que ninguem informou.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private PaymentMethod paymentMethod;
+
+    /**
+     * Numero do ingresso, no formato {@code TP-XXXXXX-XXXXXX}.
+     *
+     * <p>Nasce com a confirmacao, porque e o ingresso que ele identifica, e reserva pendente
+     * ainda nao e ingresso. Ver {@link CodigoDeIngresso} para o formato e a conta da colisao.
+     */
+    @Column(name = "ticket_code", length = 20)
+    private String ticketCode;
+
     @Column(name = "idempotency_key", nullable = false, updatable = false, length = 100)
     private String idempotencyKey;
 
@@ -84,12 +119,14 @@ public class Booking {
     protected Booking() {
     }
 
-    private Booking(UUID eventId, UUID userId, int quantity, BigDecimal totalPrice,
+    private Booking(UUID eventId, UUID userId, int quantity, Valores valores,
                     Instant expiresAt, String idempotencyKey) {
         this.eventId = eventId;
         this.userId = userId;
         this.quantity = quantity;
-        this.totalPrice = totalPrice;
+        this.subtotal = valores.subtotal();
+        this.fee = valores.taxa();
+        this.totalPrice = valores.total();
         // Truncado para microssegundos, que e a precisao de TIMESTAMPTZ no PostgreSQL. Sem isso
         // o objeto em memoria carrega nanossegundos que o banco arredonda ao gravar, e a reserva
         // devolvida no 201 sai diferente da mesma reserva lida logo depois — mesmo id, mesmo
@@ -112,9 +149,9 @@ public class Booking {
      * um valor vindo de fora poderia discordar da soma dos lugares, por erro de arredondamento
      * ou por adulteracao, e o banco aceitaria a incoerencia.
      */
-    public static Booking pendente(UUID eventId, UUID userId, int quantity, BigDecimal totalPrice,
+    public static Booking pendente(UUID eventId, UUID userId, int quantity, Valores valores,
                                    Instant expiresAt, String idempotencyKey) {
-        return new Booking(eventId, userId, quantity, totalPrice, expiresAt, idempotencyKey);
+        return new Booking(eventId, userId, quantity, valores, expiresAt, idempotencyKey);
     }
 
     public boolean estaPendente() {
@@ -142,8 +179,24 @@ public class Booking {
         return quantity;
     }
 
+    public BigDecimal getSubtotal() {
+        return subtotal;
+    }
+
+    public BigDecimal getFee() {
+        return fee;
+    }
+
     public BigDecimal getTotalPrice() {
         return totalPrice;
+    }
+
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public String getTicketCode() {
+        return ticketCode;
     }
 
     public BookingStatus getStatus() {

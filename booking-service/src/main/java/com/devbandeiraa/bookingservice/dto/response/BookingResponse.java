@@ -3,6 +3,7 @@ package com.devbandeiraa.bookingservice.dto.response;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingSeat;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
+import com.devbandeiraa.bookingservice.domain.PaymentMethod;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -22,18 +23,31 @@ import java.util.UUID;
  *
  * <p>{@code seats} vem vazia nas reservas anteriores a Fase 17, feitas quando o sistema contava
  * ingressos sem saber quais eram. Inventar lugares para elas afirmaria algo que nunca se soube.
+ *
+ * <p>{@code subtotal}, {@code fee} e {@code totalPrice} vem os tres, em vez de so o total com a
+ * taxa embutida: a tela de checkout precisa mostrar a decomposicao, e recalcula-la no cliente
+ * duplicaria a regra de arredondamento em outra linguagem. Somam sempre — e uma invariante que o
+ * banco tambem guarda, em {@code ck_bookings_total_fecha}.
+ *
+ * <p>{@code paymentMethod} e {@code ticketCode} sao nulos enquanto a reserva nao foi paga, e
+ * tambem nas reservas confirmadas antes da Fase 22, que foram pagas quando os campos nao
+ * existiam. A tela do ingresso trata os dois casos igual: sem codigo, nao ha ingresso a desenhar.
  */
 public record BookingResponse(
         UUID id,
         UUID eventId,
         UUID userId,
         int quantity,
+        BigDecimal subtotal,
+        BigDecimal fee,
         BigDecimal totalPrice,
         List<AssentoResponse> seats,
         BookingStatus status,
         Instant expiresAt,
         Instant paidAt,
-        Instant createdAt) {
+        Instant createdAt,
+        PaymentMethod paymentMethod,
+        String ticketCode) {
 
     /**
      * Um lugar da reserva.
@@ -67,11 +81,15 @@ public record BookingResponse(
                 reserva.getEventId(),
                 reserva.getUserId(),
                 reserva.getQuantity(),
+                reserva.getSubtotal(),
+                reserva.getFee(),
                 reserva.getTotalPrice(),
                 assentos.stream().map(AssentoResponse::de).toList(),
                 reserva.getStatus(),
                 reserva.getExpiresAt(),
                 reserva.getPaidAt(),
-                reserva.getCreatedAt());
+                reserva.getCreatedAt(),
+                reserva.getPaymentMethod(),
+                reserva.getTicketCode());
     }
 }
