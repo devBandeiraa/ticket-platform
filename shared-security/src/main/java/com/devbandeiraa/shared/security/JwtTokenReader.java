@@ -19,6 +19,9 @@ public class JwtTokenReader {
     static final String CLAIM_EMAIL = "email";
     static final String CLAIM_ROLE = "role";
 
+    /** Nome do padrao OpenID Connect. Ausente em token emitido antes da Fase 23. */
+    static final String CLAIM_NAME = "name";
+
     private final SecretKey chave;
     private final String emissorEsperado;
 
@@ -44,6 +47,10 @@ public class JwtTokenReader {
         return new AuthenticatedUser(
                 UUID.fromString(claims.getSubject()),
                 claims.get(CLAIM_EMAIL, String.class),
-                Role.valueOf(claims.get(CLAIM_ROLE, String.class)));
+                Role.valueOf(claims.get(CLAIM_ROLE, String.class)),
+                // Sem exigir presenca: um token valido emitido ontem nao tem este claim, e
+                // recusa-lo deslogaria todo mundo no momento do deploy por um campo que so
+                // serve para escrever um nome na tela.
+                claims.get(CLAIM_NAME, String.class));
     }
 }

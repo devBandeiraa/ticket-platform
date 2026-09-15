@@ -50,6 +50,13 @@ export interface UsuarioAutenticado {
   id: string
   email: string
   role: Papel
+  /**
+   * Nome do portador, do claim `name`.
+   *
+   * Nulo em token emitido antes da Fase 23, quando o claim nao existia. Quem exibe precisa
+   * tratar a ausencia — o email serve de recurso, e o proximo refresh resolve de vez.
+   */
+  fullName: string | null
 }
 
 export interface UsuarioCadastrado {
@@ -197,6 +204,28 @@ export interface Reserva {
   paymentMethod: FormaDePagamento | null
   /** Numero do ingresso, no formato `TP-XXXXXX-XXXXXX`. Sem ele, nao ha ingresso a desenhar. */
   ticketCode: string | null
+}
+
+/**
+ * Agregados de venda do painel administrativo.
+ *
+ * Vem de COUNT e SUM sobre o banco, e nao das metricas do Prometheus: aquelas contam o que o
+ * processo viu desde que subiu e zeram a cada reinicio.
+ */
+export interface MetricasDeVenda {
+  /** Soma dos subtotais confirmados: o que os ingressos renderam. */
+  receitaDosIngressos: number
+  /** Soma das taxas confirmadas: o que a plataforma reteve. Separado da receita de proposito. */
+  taxaArrecadada: number
+  ingressosVendidos: number
+  reservasCriadas: number
+  reservasConfirmadas: number
+  reservasExpiradas: number
+  reservasCanceladas: number
+  /** Confirmadas sobre criadas, em pontos percentuais. */
+  conversao: number
+  /** Conta apenas eventos ja hidratados no booking-service — ver a nota do endpoint. */
+  lugaresDisponiveis: number
 }
 
 export interface Pagina<T> {

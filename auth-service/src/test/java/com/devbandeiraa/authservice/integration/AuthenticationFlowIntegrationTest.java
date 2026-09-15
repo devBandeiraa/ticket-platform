@@ -117,7 +117,11 @@ class AuthenticationFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(EMAIL))
                 .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.id").isNotEmpty());
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                // O nome vem do claim `name`, e nao de uma consulta ao banco. E o que permite ao
+                // ingresso digital imprimir quem comprou sem que /auth/me perca a propriedade
+                // que motivou o JWT aqui.
+                .andExpect(jsonPath("$.fullName").value("Joao Silva"));
     }
 
     @Test

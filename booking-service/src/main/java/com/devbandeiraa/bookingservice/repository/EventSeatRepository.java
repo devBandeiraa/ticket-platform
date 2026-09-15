@@ -141,6 +141,9 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, UUID> {
 
     long countByEventIdAndStatus(UUID eventId, SeatStatus status);
 
+    /** Total de lugares num dado estado, em todos os eventos hidratados. */
+    long countByStatus(SeatStatus status);
+
     // Os metodos abaixo apenas fixam as constantes de estado das consultas acima, pelo mesmo
     // motivo que BookingRepository faz o mesmo: deixar o estado a cargo de cada chamador
     // abriria espaco para montar uma transicao que a maquina de estados nao preve.
@@ -163,5 +166,18 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, UUID> {
     /** Quantos lugares deste evento ainda estao livres. */
     default long contarLivres(UUID eventId) {
         return countByEventIdAndStatus(eventId, SeatStatus.FREE);
+    }
+
+    /**
+     * Lugares livres em TODOS os eventos, para o painel de vendas.
+     *
+     * <p>Conta apenas eventos ja hidratados neste servico. Um evento publicado que nunca recebeu
+     * tentativa de reserva ainda nao tem assentos aqui — a hidratacao acontece na primeira
+     * reserva —, entao a capacidade dele nao aparece neste numero. O painel informa isso ao
+     * lado, porque um "disponiveis" menor que a soma das casas publicadas parece defeito quando
+     * nao e.
+     */
+    default long contarLivresEmTodosOsEventos() {
+        return countByStatus(SeatStatus.FREE);
     }
 }
