@@ -34,6 +34,9 @@ export type FaixaDeSetor = 'STANDARD' | 'VIP'
 
 export type StatusDaReserva = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED'
 
+/** Forma escolhida no checkout. O simulador trata as duas iguais; a distincao e do comprador. */
+export type FormaDePagamento = 'CARD' | 'PIX'
+
 export interface Tokens {
   accessToken: string
   refreshToken: string
@@ -164,6 +167,17 @@ export interface Reserva {
   eventId: string
   userId: string
   quantity: number
+  /** Soma dos precos dos lugares, sem a taxa. */
+  subtotal: number
+  /** Taxa de servico sobre o subtotal. Zero quando a plataforma nao cobra taxa. */
+  fee: number
+  /**
+   * O que foi cobrado: `subtotal + fee`.
+   *
+   * Mudou de significado na Fase 22. Ate ela era a soma dos lugares, que hoje e `subtotal`. Os
+   * tres vem na resposta em vez de a tela recalcular: a regra de arredondamento mora no
+   * servidor, e refaze-la aqui a duplicaria em outra linguagem.
+   */
   totalPrice: number
   /**
    * Os lugares da reserva, cada um com o que custou no ato da compra.
@@ -179,6 +193,10 @@ export interface Reserva {
   expiresAt: string | null
   paidAt: string | null
   createdAt: string
+  /** Nulos enquanto a reserva nao foi paga, e nas reservas confirmadas antes da Fase 22. */
+  paymentMethod: FormaDePagamento | null
+  /** Numero do ingresso, no formato `TP-XXXXXX-XXXXXX`. Sem ele, nao ha ingresso a desenhar. */
+  ticketCode: string | null
 }
 
 export interface Pagina<T> {

@@ -3,6 +3,7 @@ package com.devbandeiraa.bookingservice.service;
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingSeat;
 import com.devbandeiraa.bookingservice.domain.EventSeat;
+import com.devbandeiraa.bookingservice.domain.Valores;
 import com.devbandeiraa.bookingservice.exception.AssentosIndisponiveisException;
 import com.devbandeiraa.bookingservice.exception.EstoqueEsgotadoException;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
@@ -41,12 +42,16 @@ public class ReservaTransacional {
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingRepository bookingRepository;
 
+    private final TaxaProperties taxa;
+
     public ReservaTransacional(EventSeatRepository assentoRepository,
                                BookingSeatRepository bookingSeatRepository,
-                               BookingRepository bookingRepository) {
+                               BookingRepository bookingRepository,
+                               TaxaProperties taxa) {
         this.assentoRepository = assentoRepository;
         this.bookingSeatRepository = bookingSeatRepository;
         this.bookingRepository = bookingRepository;
+        this.taxa = taxa;
     }
 
     /**
@@ -114,9 +119,12 @@ public class ReservaTransacional {
     private Booking tomar(UUID eventId, UUID userId, List<EventSeat> assentos, Instant expiraEm,
                           String chaveDeIdempotencia) {
 
+        // A taxa e calculada e GRAVADA agora, com o percentual vigente. Guardada, a reserva
+        // continua valendo o que valia quando foi feita, mesmo que a configuracao mude depois.
+        Valores valores = Valores.de(EstoqueService.somar(assentos), taxa.percentual());
+
         Booking reserva = bookingRepository.save(Booking.pendente(
-                eventId, userId, assentos.size(), EstoqueService.somar(assentos),
-                expiraEm, chaveDeIdempotencia));
+                eventId, userId, assentos.size(), valores, expiraEm, chaveDeIdempotencia));
 
         List<UUID> ids = assentos.stream().map(EventSeat::getId).toList();
 

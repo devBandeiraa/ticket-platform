@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -74,6 +75,36 @@ public abstract class ApiExceptionHandlerSupport {
 
         return responder(HttpStatus.BAD_REQUEST, "INVALID_PARAMETER",
                 "Valor invalido para o parametro '" + excecao.getName() + "'", requisicao, traceId);
+    }
+
+    /**
+     * Corpo que o Jackson nao conseguiu ler: JSON malformado, tipo errado num campo, ou um valor
+     * fora do conjunto de um enum.
+     *
+     * <p>Sem este tratador o caso cai na rede de seguranca e vira 500 — um erro de servidor para
+     * algo que o cliente digitou. E o que acontecia com {@code {"method": "BOLETO"}}: a
+     * requisicao nunca chegava ao controller, entao a validacao do Bean Validation tambem nao
+     * rodava, e nada entre o Jackson e o {@code @ExceptionHandler(Exception.class)} sabia que
+     * aquilo era culpa de quem enviou.
+     *
+     * <p>A mensagem devolvida e generica de proposito. A do Jackson traz o nome qualificado da
+     * classe do enum e a lista inteira de valores aceitos, que e mais do que o cliente precisa e
+     * mais do que convem publicar. O detalhe fica no log, junto do traceId.
+     *
+     * <p>Nao devolve mapa de campos como a validacao devolve: quando a leitura falha, o Jackson
+     * interrompe na primeira ocorrencia e nao ha como saber o que mais estaria errado. Afirmar
+     * que so ha um problema seria afirmar mais do que se sabe.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> tratarCorpoIlegivel(
+            HttpMessageNotReadableException excecao, HttpServletRequest requisicao) {
+
+        String traceId = gerarTraceId();
+        log.info("[{}] corpo ilegivel em {}: {}",
+                traceId, requisicao.getRequestURI(), excecao.getMostSpecificCause().getMessage());
+
+        return responder(HttpStatus.BAD_REQUEST, "MALFORMED_BODY",
+                "O corpo da requisicao nao pode ser lido", requisicao, traceId);
     }
 
     /**

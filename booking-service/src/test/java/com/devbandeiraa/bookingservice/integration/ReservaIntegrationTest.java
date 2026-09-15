@@ -117,9 +117,14 @@ class ReservaIntegrationTest {
                 .andExpect(jsonPath("$.seats[2].price").value(150.00))
                 // Cada lugar vem identificado, e nao apenas contado.
                 .andExpect(jsonPath("$.seats[0].label").value("Plateia A1"))
-                // Total somado no servidor a partir dos lugares efetivamente tomados: um total
-                // vindo pronto do cliente poderia discordar da soma.
-                .andExpect(jsonPath("$.totalPrice").value(450.00));
+                // Soma dos lugares efetivamente tomados, calculada no servidor: um valor vindo
+                // pronto do cliente poderia discordar dos assentos.
+                //
+                // E `subtotal`, e nao `totalPrice`. Ate a Fase 22 os dois eram a mesma coisa;
+                // desde a taxa de servico, `totalPrice` e subtotal mais taxa, e a soma dos
+                // lugares passou a morar em `subtotal`. A assercao seguiu o significado, e nao
+                // o nome do campo.
+                .andExpect(jsonPath("$.subtotal").value(450.00));
     }
 
     @Test

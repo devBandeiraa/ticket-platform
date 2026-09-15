@@ -2,6 +2,8 @@ package com.devbandeiraa.bookingservice.repository;
 
 import com.devbandeiraa.bookingservice.domain.Booking;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
+import com.devbandeiraa.bookingservice.domain.CodigoDeIngresso;
+import com.devbandeiraa.bookingservice.domain.PaymentMethod;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -45,7 +47,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
             UPDATE Booking reserva
                SET reserva.status = :confirmada,
                    reserva.paidAt = :agora,
-                   reserva.paymentAuthorization = :comprovante
+                   reserva.paymentAuthorization = :comprovante,
+                   reserva.paymentMethod = :forma,
+                   reserva.ticketCode = :codigo
              WHERE reserva.id = :id
                AND reserva.status = :pendente
                AND reserva.expiresAt > :agora
@@ -53,6 +57,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
     int confirmarSePendente(@Param("id") UUID id,
                             @Param("agora") Instant agora,
                             @Param("comprovante") String comprovante,
+                            @Param("forma") PaymentMethod forma,
+                            @Param("codigo") String codigo,
                             @Param("pendente") BookingStatus pendente,
                             @Param("confirmada") BookingStatus confirmada);
 
@@ -105,10 +111,19 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
      * <p>O comprovante entra no mesmo {@code UPDATE} que muda o status, e nao numa escrita
      * separada: sao o mesmo fato. Gravado a parte, um erro entre as duas instrucoes deixaria uma
      * reserva confirmada sem como estorna-la, ou um comprovante solto sem reserva.
+     *
+     * <p>A forma de pagamento e o codigo do ingresso entram junto, pela mesma razao e por uma
+     * segunda: o {@code ck_bookings_pagamento_so_com_pagamento} exige que os dois so existam com
+     * {@code paid_at} preenchido. Escritos numa instrucao posterior, haveria um instante em que a
+     * linha violaria a constraint — e o banco recusaria a propria confirmacao que acabou de
+     * acontecer.
+     *
+     * <p>O codigo e sorteado aqui, e nao recebido de fora: e o servidor quem numera o ingresso.
+     * Ver {@link CodigoDeIngresso} para o formato e a conta da colisao.
      */
-    default int confirmar(UUID id, Instant agora, String comprovante) {
-        return confirmarSePendente(
-                id, agora, comprovante, BookingStatus.PENDING, BookingStatus.CONFIRMED);
+    default int confirmar(UUID id, Instant agora, String comprovante, PaymentMethod forma) {
+        return confirmarSePendente(id, agora, comprovante, forma, CodigoDeIngresso.gerar(),
+                BookingStatus.PENDING, BookingStatus.CONFIRMED);
     }
 
     /** Cancelamento pedido pelo usuario. */

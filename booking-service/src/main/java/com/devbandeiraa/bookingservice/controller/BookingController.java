@@ -2,6 +2,7 @@ package com.devbandeiraa.bookingservice.controller;
 
 import com.devbandeiraa.bookingservice.config.OpenApiConfig;
 import com.devbandeiraa.bookingservice.dto.request.CreateBookingRequest;
+import com.devbandeiraa.bookingservice.dto.request.PayBookingRequest;
 import com.devbandeiraa.bookingservice.dto.response.BookingResponse;
 import com.devbandeiraa.bookingservice.dto.response.PaginaResponse;
 import com.devbandeiraa.bookingservice.service.BookingService;
@@ -161,7 +162,10 @@ public class BookingController {
                     + "nova, e sim disparar uma transicao que so o servidor sabe se pode "
                     + "acontecer.\n\n"
                     + "Pagar o que ja esta pago devolve **200** com a mesma reserva. Um "
-                    + "duplo clique nao deve produzir tela de erro para algo que deu certo.")
+                    + "duplo clique nao deve produzir tela de erro para algo que deu certo.\n\n"
+                    + "O corpo e **opcional**: sem ele, ou com `method` nulo, vale `CARD`. "
+                    + "Ate a Fase 22 este endpoint nao recebia corpo algum, e exigir um agora "
+                    + "quebraria todo cliente ja escrito.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "reserva confirmada"),
             @ApiResponse(responseCode = "409",
@@ -172,9 +176,12 @@ public class BookingController {
                     content = @Content)})
     @PostMapping("/{id}/pay")
     public ResponseEntity<BookingResponse> pagar(
-            @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser usuario) {
+            @PathVariable UUID id,
+            @RequestBody(required = false) PayBookingRequest requisicao,
+            @AuthenticationPrincipal AuthenticatedUser usuario) {
 
-        return ResponseEntity.ok(bookingService.pagar(id, usuario));
+        return ResponseEntity.ok(
+                bookingService.pagar(id, PayBookingRequest.formaDe(requisicao), usuario));
     }
 
     /** Cancela a reserva, devolvendo os ingressos ao estoque. */

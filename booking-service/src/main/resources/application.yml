@@ -71,6 +71,14 @@ booking:
     # chegue ao banco e vire erro de integridade em vez de erro de validacao.
     tamanho-maximo-da-chave: 100
 
+  taxa:
+    # Taxa de servico sobre o subtotal, em pontos percentuais. Zero desliga a cobranca.
+    #
+    # O valor aplicado fica gravado na reserva, e nao recalculado na leitura: uma compra feita
+    # sob 10% continua valendo 10% depois de este numero mudar. Recalcular faria o historico
+    # inteiro mudar junto da configuracao, e o comprovante do usuario deixaria de bater.
+    percentual: ${BOOKING_TAXA_PERCENTUAL:10}
+
   expiracao:
     # Intervalo entre varreduras, contado a partir do FIM da execucao anterior (fixedDelay).
     intervalo: ${BOOKING_EXPIRACAO_INTERVALO:60s}

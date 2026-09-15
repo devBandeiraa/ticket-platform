@@ -11,6 +11,7 @@ import com.devbandeiraa.bookingservice.client.Autorizacao;
 import com.devbandeiraa.bookingservice.client.EventClient;
 import com.devbandeiraa.bookingservice.client.PagamentoClient;
 import com.devbandeiraa.bookingservice.domain.Booking;
+import com.devbandeiraa.bookingservice.domain.Valores;
 import com.devbandeiraa.bookingservice.domain.BookingStatus;
 import com.devbandeiraa.bookingservice.repository.BookingRepository;
 import com.devbandeiraa.bookingservice.repository.BookingSeatRepository;
@@ -297,7 +298,7 @@ class CicloDeVidaDaReservaIntegrationTest {
             // com um id qualquer e depois criar a reserva com outro montaria um estado que a
             // aplicacao nunca produz — e o cancelamento nao liberaria nada.
             Booking reserva = bookingRepository.saveAndFlush(Booking.pendente(
-                    eventoId, usuarioId, quantidade, totalDe(quantidade), expiraEm,
+                    eventoId, usuarioId, quantidade, valoresDe(quantidade), expiraEm,
                     "chave-" + UUID.randomUUID()));
 
             AssentosDeTeste.ocuparPara(assentoRepository, eventoId, quantidade, reserva.getId());
@@ -327,9 +328,16 @@ class CicloDeVidaDaReservaIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
     }
 
-    /** O total da reserva e a soma dos lugares — nao mais preco unitario vezes quantidade. */
-    private static BigDecimal totalDe(int quantidade) {
-        return PRECO.multiply(BigDecimal.valueOf(quantidade));
+    /**
+     * Os valores da reserva: soma dos lugares, taxa e total.
+     *
+     * <p>Taxa ZERO de proposito. Estes testes verificam ciclo de vida, outbox e consulta, e
+     * nenhum deles tem opiniao sobre taxa. Com zero, o total continua sendo a soma dos lugares e
+     * as assercoes sobre valor seguem valendo o que valiam. Quem exercita a taxa e o teste que
+     * existe para isso.
+     */
+    private static Valores valoresDe(int quantidade) {
+        return Valores.de(PRECO.multiply(BigDecimal.valueOf(quantidade)), BigDecimal.ZERO);
     }
 
 }
