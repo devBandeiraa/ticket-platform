@@ -45,7 +45,7 @@ export function EventosAdmin() {
         </div>
         <Link
           to="/admin/eventos/novo"
-          className="ml-auto rounded-md bg-marca px-4 py-2 text-sm font-medium text-fundo hover:bg-marca-forte"
+          className="ml-auto rounded-md bg-marca px-4 py-2 text-sm font-medium text-superficie hover:bg-marca-forte"
         >
           Novo evento
         </Link>
@@ -61,7 +61,7 @@ export function EventosAdmin() {
             }}
             className={`rounded-md px-3 py-1.5 text-sm transition ${
               status === filtro.valor
-                ? 'bg-marca text-fundo'
+                ? 'bg-marca text-superficie'
                 : 'border border-borda text-suave hover:text-texto'
             }`}
           >
@@ -109,7 +109,7 @@ export function EventosAdmin() {
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-borda pt-4">
                   <Link
                     to={`/admin/eventos/${evento.id}`}
-                    className="rounded-md border border-borda px-4 py-2 text-sm hover:bg-fundo"
+                    className="rounded-md border border-borda px-4 py-2 text-sm hover:bg-papel"
                   >
                     Editar
                   </Link>
@@ -122,7 +122,7 @@ export function EventosAdmin() {
                   </Botao>
                   <Link
                     to={`/admin/reservas?eventId=${evento.id}`}
-                    className="rounded-md border border-borda px-4 py-2 text-sm hover:bg-fundo"
+                    className="rounded-md border border-borda px-4 py-2 text-sm hover:bg-papel"
                   >
                     Reservas
                   </Link>

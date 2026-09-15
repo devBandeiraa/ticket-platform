@@ -170,7 +170,7 @@ export function FormularioDeEvento() {
               maxLength={2000}
               value={dados.description ?? ''}
               onChange={(e) => alterar('description', e.target.value)}
-              className="w-full rounded-md border border-borda bg-fundo px-3 py-2 text-sm outline-none focus:border-marca"
+              className="w-full rounded-md border border-borda bg-papel px-3 py-2 text-sm outline-none focus:border-marca"
             />
             {campos?.description && (
               <span className="mt-1 block text-xs text-erro">{campos.description}</span>

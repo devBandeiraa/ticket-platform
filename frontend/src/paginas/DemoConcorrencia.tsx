@@ -185,7 +185,7 @@ export function DemoConcorrencia() {
                   </label>
 
                   {estoque.data && (
-                    <div className="flex items-center justify-between rounded-lg border border-borda/60 bg-fundo/40 px-4 py-3 text-sm">
+                    <div className="flex items-center justify-between rounded-lg border border-borda/60 bg-papel/40 px-4 py-3 text-sm">
                       <span className="text-suave">Estoque agora</span>
                       <span className="numerico">
                         <span className="font-semibold text-texto">{estoque.data.available}</span>
@@ -197,7 +197,7 @@ export function DemoConcorrencia() {
                   <Botao className="w-full py-3" disabled={!eventoId || rodando} onClick={disparar}>
                     {rodando ? (
                       <span className="inline-flex items-center gap-2">
-                        <span className="size-4 animate-spin rounded-full border-2 border-fundo/30 border-t-fundo" />
+                        <span className="size-4 animate-spin rounded-full border-2 border-papel/30 border-t-fundo" />
                         Disparando {quantas} reservas...
                       </span>
                     ) : (
@@ -265,7 +265,7 @@ export function DemoConcorrencia() {
 
                 {/* A barra torna a proporcao imediata: a fatia verde e exatamente o quanto
                     cabia no estoque, e o resto bateu na condicao do UPDATE. */}
-                <div className="mt-6 flex h-2.5 overflow-hidden rounded-full bg-fundo">
+                <div className="mt-6 flex h-2.5 overflow-hidden rounded-full bg-papel">
                   <div
                     className="bg-ok transition-all duration-700 ease-out"
                     style={{ width: `${(resultado.confirmadas / resultado.disparadas) * 100}%` }}

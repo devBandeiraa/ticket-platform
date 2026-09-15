@@ -203,7 +203,7 @@ export function DetalheDoEvento() {
             <Link
               to="/login"
               state={{ de: `/eventos/${id}` }}
-              className="block rounded-md bg-marca px-4 py-2 text-center text-sm font-medium text-fundo transition-colors hover:bg-marca-forte focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca"
+              className="block rounded-md bg-marca px-4 py-2 text-center text-sm font-medium text-superficie transition-colors hover:bg-marca-forte focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca"
             >
               Entrar
             </Link>
