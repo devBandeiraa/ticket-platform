@@ -18,6 +18,7 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white)](#observabilidade)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
+[![CI](https://github.com/devBandeiraa/ticket-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/devBandeiraa/ticket-platform/actions/workflows/ci.yml)
 [![Testes](https://img.shields.io/badge/testes-356-success?style=flat-square)](#testes)
 [![Cobertura](https://img.shields.io/badge/cobertura-89%25-success?style=flat-square)](#testes)
 
@@ -560,6 +561,12 @@ o usa. No agregado ele aparece com 96,5%, que é a verdade. Publicar os 33% pedi
 "melhorasse" a cobertura de código já coberto — provavelmente escrevendo teste redundante para
 calar o número.
 
+**Tudo isso roda a cada Pull Request**, no [GitHub Actions](.github/workflows/ci.yml) — dois jobs
+em paralelo, backend e frontend, porque são ferramentas e tempos distintos: o backend sobe
+containers e leva mais de dez minutos, o frontend resolve em menos de um. Num job só, um erro de
+digitação no TypeScript só apareceria depois de todo o Testcontainers rodar. A cobertura aparece
+no resumo da execução, e não dentro de um artefato que exigiria baixar e descompactar.
+
 **As fatias `@WebMvcTest` rodam sem Docker**, e isso é o ponto delas. Todo o resto exige
 Testcontainers, o que é correto — o isolamento do PostgreSQL sob concorrência é o objeto do
 teste. Mas significava que, com o Docker fora do ar, nada podia ser verificado. As fatias cobrem
@@ -617,7 +624,13 @@ Escolhas de escopo, não descuidos. Todas estão registradas com justificativa e
   junto com o resto.
 - **Sem alertas.** Os painéis mostram; ninguém é acordado. Um Alertmanager é o passo seguinte — sem
   ele, o Grafana só responde perguntas que alguém precisa se lembrar de fazer.
-- **Sem CI.** Os testes rodam localmente; um workflow de GitHub Actions é o próximo passo natural.
+- **Sem link público.** A plataforma são treze containers, e seis deles são serviços JVM que
+  pedem de 300 a 500 MB cada — isso não cabe em camada gratuita. Um deploy reduzido caberia, mas
+  deixaria de fora RabbitMQ e `payment-simulator`, e a primeira coisa que alguém tenta é comprar:
+  o caminho morreria no meio. Entre um link que quebra na ação principal e nenhum link, a escolha
+  foi a segunda — este README já diz que o projeto **não roda em produção e não finge que roda**,
+  e um deploy parcial contradiria exatamente isso. Sobe inteiro com um comando, e o fluxo de
+  compra está gravado acima.
 - **Kubernetes só em cluster local, e parado na Fase 9.** Um nó, `NodePort` em vez de Ingress,
   sem HPA e com os Secrets versionados para o projeto subir com um comando. Os manifestos cobrem
   os cinco serviços originais: `payment-simulator`, Jaeger, Prometheus e Grafana só existem no
