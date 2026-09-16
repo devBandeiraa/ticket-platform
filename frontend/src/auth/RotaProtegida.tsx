@@ -14,7 +14,7 @@ export function RotaProtegida({ exigeAdmin = false }: { exigeAdmin?: boolean }) 
   const { usuario, carregando, ehAdmin } = useSessao()
   const local = useLocation()
 
-  // Sem esta espera, um recarregamento em /minhas-reservas jogaria para o login antes de a
+  // Sem esta espera, um recarregamento em /meus-ingressos jogaria para o login antes de a
   // sessao ser retomada, e o usuario perderia a pagina em que estava.
   if (carregando) return <Carregando />
 

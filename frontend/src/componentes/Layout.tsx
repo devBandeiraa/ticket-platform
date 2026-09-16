@@ -80,7 +80,7 @@ export function Layout() {
           <nav className="flex flex-wrap items-center gap-1">
             <Item para="/">Eventos</Item>
             <Item para="/explorar">Explorar</Item>
-            {usuario && <Item para="/minhas-reservas">Minhas reservas</Item>}
+            {usuario && <Item para="/meus-ingressos">Meus ingressos</Item>}
             {ehAdmin && <Item para="/admin/eventos">Gerenciar</Item>}
             {ehAdmin && <Item para="/admin/reservas">Painel</Item>}
             <Item para="/demo/concorrencia">Concorrencia</Item>
