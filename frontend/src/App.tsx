@@ -4,6 +4,7 @@ import { ProvedorDeSessao } from './auth/SessaoContext'
 import { RotaProtegida } from './auth/RotaProtegida'
 import { Layout } from './componentes/Layout'
 import { ErroDaApi } from './api/cliente'
+import { Checkout } from './paginas/Checkout'
 import { Explorar } from './paginas/Explorar'
 import { Home } from './paginas/Home'
 import { DetalheDoEvento } from './paginas/DetalheDoEvento'
@@ -54,6 +55,10 @@ export default function App() {
               {/* exigem sessao */}
               <Route element={<RotaProtegida />}>
                 <Route path="minhas-reservas" element={<MinhasReservas />} />
+                {/* Protegida: a reserva pertence a alguem, e o backend devolve 403 para o
+                    token de outro usuario. Sem a guarda, quem nao esta logado veria um erro
+                    de API no lugar da tela de entrar. */}
+                <Route path="checkout/:id" element={<Checkout />} />
               </Route>
 
               {/* exigem ADMIN */}
