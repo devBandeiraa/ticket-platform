@@ -4,7 +4,7 @@ import { cadastrar } from '../api/auth'
 import { ErroDaApi } from '../api/cliente'
 import { useSessao } from '../auth/SessaoContext'
 import { mensagemDe } from '../componentes/Estados'
-import { Botao, Campo, Cartao } from '../componentes/Ui'
+import { Botao, Campo, Cartao, Secao } from '../componentes/Ui'
 
 export function Cadastro() {
   const { entrar } = useSessao()
@@ -39,7 +39,7 @@ export function Cadastro() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
+    <Secao largura="estreita">
       <h1 className="mb-6 text-2xl font-semibold">Criar conta</h1>
 
       <Cartao>
@@ -87,6 +87,6 @@ export function Cadastro() {
           Entrar
         </Link>
       </p>
-    </div>
+    </Secao>
   )
 }

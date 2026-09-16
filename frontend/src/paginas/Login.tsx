@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSessao } from '../auth/SessaoContext'
 import { mensagemDe } from '../componentes/Estados'
-import { Botao, Campo, Cartao } from '../componentes/Ui'
+import { Botao, Campo, Cartao, Secao } from '../componentes/Ui'
 
 export function Login() {
   const { entrar } = useSessao()
@@ -32,7 +32,7 @@ export function Login() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
+    <Secao largura="estreita">
       <h1 className="mb-6 text-2xl font-semibold">Entrar</h1>
 
       <Cartao>
@@ -70,6 +70,6 @@ export function Login() {
           Criar agora
         </Link>
       </p>
-    </div>
+    </Secao>
   )
 }

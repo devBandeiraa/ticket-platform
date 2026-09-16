@@ -68,7 +68,10 @@ export function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-20 border-b border-borda bg-papel/85 backdrop-blur-xl">
+      {/* Opaco, e nao translucido. Sobre a faixa escura do hero, papel a 85% vira um cinza
+          barrento que nao pertence a nenhuma das duas familias de cor — e o desfoque atras
+          dele nao tem o que desfocar quando o fundo e chapado. */}
+      <header className="sticky top-0 z-20 border-b border-borda bg-papel">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
           <Link to="/" className="mr-2 font-semibold transition-opacity hover:opacity-80">
             ticket<span className="text-marca">.platform</span>
@@ -76,6 +79,7 @@ export function Layout() {
 
           <nav className="flex flex-wrap items-center gap-1">
             <Item para="/">Eventos</Item>
+            <Item para="/explorar">Explorar</Item>
             {usuario && <Item para="/minhas-reservas">Minhas reservas</Item>}
             {ehAdmin && <Item para="/admin/eventos">Gerenciar</Item>}
             {ehAdmin && <Item para="/admin/reservas">Painel</Item>}
@@ -117,11 +121,10 @@ export function Layout() {
 
       {/* A chave force a animacao de entrada a repetir a cada troca de rota. Sem ela o React
           reaproveita o no e a transicao so aconteceria no primeiro carregamento. */}
-      {/* O container fica aqui por enquanto. Quando a home ganhar o hero de largura total, ele
-          desce para cada pagina — uma faixa escura que sangra ate a borda nao cabe dentro de um
-          `max-w`, e tirar o container agora deixaria todas as telas sem margem antes de haver
-          quem as redesenhe. */}
-      <main key={local.pathname} className="mx-auto w-full max-w-5xl flex-1 animate-subir px-4 py-10">
+      {/* Sem container: a faixa escura do hero sangra ate a borda da janela, e um `max-w`
+          em volta a transformaria numa caixa centralizada. Cada pagina declara o proprio —
+          `Secao` para as comuns, largura total para as que tem faixa. */}
+      <main key={local.pathname} className="flex-1 animate-subir">
         <Outlet />
       </main>
 

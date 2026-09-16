@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cancelarEvento, listarParaAdmin, publicarEvento } from '../../api/eventos'
 import type { StatusDoEvento } from '../../api/tipos'
 import { Carregando, Erro, Vazio, mensagemDe } from '../../componentes/Estados'
-import { Botao, Cartao, Paginacao } from '../../componentes/Ui'
+import { Botao, Cartao, Paginacao, Secao } from '../../componentes/Ui'
 import { dataEHora, dinheiro } from '../../componentes/formato'
 
 const FILTROS: Array<{ valor: StatusDoEvento | ''; rotulo: string }> = [
@@ -34,7 +34,7 @@ export function EventosAdmin() {
   const cancelamento = useMutation({ mutationFn: cancelarEvento, onSuccess: recarregar })
 
   return (
-    <>
+    <Secao>
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Gerenciar eventos</h1>
@@ -147,6 +147,6 @@ export function EventosAdmin() {
           aoMudar={setPagina}
         />
       )}
-    </>
+    </Secao>
   )
 }

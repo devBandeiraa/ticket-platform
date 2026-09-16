@@ -1,5 +1,6 @@
 import { query, requisitar } from './cliente'
 import type {
+  CategoriaDoEvento,
   Disponibilidade,
   EventoDetalhe,
   EventoFormulario,
@@ -10,10 +11,21 @@ import type {
 
 // --- catalogo publico (event-service) ---
 
+/**
+ * Catalogo publico.
+ *
+ * Os filtros de data sao `de` e `ate`, em ISO 8601, e nao um atalho do tipo "fim de semana": o
+ * servidor nao tem como saber qual e o fim de semana de quem consulta — depende do fuso do
+ * navegador. Quem traduz "este fim de semana" para um par de instantes e a tela, que conhece o
+ * relogio do usuario. Ver `intervalos.ts`.
+ */
 export function listarPublicados(parametros: {
   page?: number
   size?: number
   busca?: string
+  categoria?: CategoriaDoEvento | ''
+  de?: string
+  ate?: string
 }): Promise<Pagina<EventoResumo>> {
   return requisitar(`/events${query(parametros)}`)
 }

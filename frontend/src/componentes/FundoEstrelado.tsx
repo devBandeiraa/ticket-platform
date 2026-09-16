@@ -108,7 +108,14 @@ function desenharEstrelas(ctx: CanvasRenderingContext2D, estrelas: Estrela[]): v
 }
 
 /** Move as cadentes, alonga o rastro e descarta as que sairam da tela. */
-function avancarCadentes(cadentes: Cadente[]): Cadente[] {
+/**
+ * Avanca as cadentes e descarta as que sairam da area.
+ *
+ * <p>Os limites vem do CANVAS, e nao da janela: desde a Fase 25 o ceu vive dentro de uma faixa
+ * de altura propria, e usar a janela manteria vivas cadentes ja fora do quadro — invisiveis,
+ * consumindo quadro de animacao ate cruzarem a altura do monitor.
+ */
+function avancarCadentes(cadentes: Cadente[], canvasLargura: number, canvasAltura: number): Cadente[] {
   return cadentes
     .map((cadente) => {
       const radianos = (cadente.angulo * Math.PI) / 180
@@ -134,9 +141,9 @@ function avancarCadentes(cadentes: Cadente[]): Cadente[] {
     .filter(
       (cadente) =>
         cadente.x >= -30 &&
-        cadente.x <= window.innerWidth + 30 &&
+        cadente.x <= canvasLargura + 30 &&
         cadente.y >= -30 &&
-        cadente.y <= window.innerHeight + 30,
+        cadente.y <= canvasAltura + 30,
     )
 }
 
@@ -197,8 +204,13 @@ export const FundoEstrelado = memo(function FundoEstrelado({
     let cadentes: Cadente[] = []
 
     const dimensionar = (): void => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      // Mede o proprio elemento, e nao a janela. O ceu deixou de cobrir a pagina inteira na
+      // Fase 25 e passou a viver dentro de faixas escuras de altura propria; com
+      // `window.innerHeight` o canvas teria a altura do monitor dentro de uma faixa de 500px,
+      // e a densidade sairia errada porque ela e calculada sobre a area.
+      const area = canvas.getBoundingClientRect()
+      canvas.width = Math.max(1, Math.round(area.width))
+      canvas.height = Math.max(1, Math.round(area.height))
 
       const quantas = Math.floor(canvas.width * canvas.height * densidade)
       estrelas = Array.from({ length: quantas }, () => sortearEstrela(canvas.width, canvas.height))
@@ -231,7 +243,7 @@ export const FundoEstrelado = memo(function FundoEstrelado({
       desenharEstrelas(ctx, estrelas)
 
       if (cadentes.length > 0) {
-        cadentes = avancarCadentes(cadentes)
+        cadentes = avancarCadentes(cadentes, canvas.width, canvas.height)
         desenharCadentes(ctx, cadentes)
       }
     }
@@ -250,7 +262,7 @@ export const FundoEstrelado = memo(function FundoEstrelado({
       cadentes = [
         ...cadentes,
         {
-          x: Math.random() * window.innerWidth,
+          x: Math.random() * canvas.width,
           y: 0,
           // 45 a 135 graus: sempre para baixo, com inclinacao variavel para os dois lados.
           angulo: 45 + Math.random() * 90,
@@ -305,7 +317,10 @@ export const FundoEstrelado = memo(function FundoEstrelado({
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className={`pixelado pointer-events-none fixed inset-0 -z-10 ${className}`}
+      // Sem classe de posicao aqui: quem usa decide. Com `fixed` cravado, o ceu escapava do
+      // `overflow-hidden` da faixa escura — elemento fixo nao e contido por overflow — e
+      // aparecia por tras das secoes claras.
+      className={`pixelado pointer-events-none size-full ${className}`}
     />
   )
 })

@@ -4,7 +4,8 @@ import { ProvedorDeSessao } from './auth/SessaoContext'
 import { RotaProtegida } from './auth/RotaProtegida'
 import { Layout } from './componentes/Layout'
 import { ErroDaApi } from './api/cliente'
-import { Catalogo } from './paginas/Catalogo'
+import { Explorar } from './paginas/Explorar'
+import { Home } from './paginas/Home'
 import { DetalheDoEvento } from './paginas/DetalheDoEvento'
 import { Login } from './paginas/Login'
 import { Cadastro } from './paginas/Cadastro'
@@ -39,7 +40,8 @@ export default function App() {
           <Routes>
             <Route element={<Layout />}>
               {/* publicas */}
-              <Route index element={<Catalogo />} />
+              <Route index element={<Home />} />
+              <Route path="explorar" element={<Explorar />} />
               <Route path="eventos/:id" element={<DetalheDoEvento />} />
               <Route path="login" element={<Login />} />
               <Route path="cadastro" element={<Cadastro />} />

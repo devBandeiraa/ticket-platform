@@ -11,7 +11,7 @@ import { Capa } from '../componentes/Capa'
 import { Carregando, Erro, mensagemDe } from '../componentes/Estados'
 import { MapaDeAssentos } from '../componentes/MapaDeAssentos'
 import { reconciliar, somar } from '../componentes/selecaoDeAssentos'
-import { Botao, Cartao } from '../componentes/Ui'
+import { Botao, Cartao, Secao } from '../componentes/Ui'
 import { dataEHora, dinheiro } from '../componentes/formato'
 
 /** Teto por reserva. O mesmo do backend — passar disso recebe 400. */
@@ -129,7 +129,7 @@ export function DetalheDoEvento() {
   const esgotado = restam !== undefined && restam <= 0
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+    <Secao className="grid gap-6 lg:grid-cols-[1fr_20rem]">
       <div>
         <Link to="/" className="text-sm text-suave hover:text-texto">
           &larr; voltar ao catalogo
@@ -260,6 +260,6 @@ export function DetalheDoEvento() {
           </div>
         )}
       </Cartao>
-    </div>
+    </Secao>
   )
 }
