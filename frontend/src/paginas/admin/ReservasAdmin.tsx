@@ -5,7 +5,7 @@ import { listarParaAdmin } from '../../api/reservas'
 import { consultarDisponibilidade } from '../../api/eventos'
 import type { StatusDaReserva } from '../../api/tipos'
 import { Carregando, Erro, Vazio } from '../../componentes/Estados'
-import { Cartao, Paginacao, SeloDeReserva } from '../../componentes/Ui'
+import { Cartao, Paginacao, Secao, SeloDeReserva } from '../../componentes/Ui'
 import { dataEHora, dinheiro } from '../../componentes/formato'
 
 const FILTROS: Array<{ valor: StatusDaReserva | ''; rotulo: string }> = [
@@ -39,7 +39,7 @@ export function ReservasAdmin() {
   })
 
   return (
-    <>
+    <Secao>
       <h1 className="mb-1 text-2xl font-semibold">Painel de reservas</h1>
       <p className="mb-6 text-sm text-suave">
         {eventId ? 'Filtrado por evento.' : 'Todas as reservas da plataforma.'}
@@ -134,7 +134,7 @@ export function ReservasAdmin() {
           aoMudar={setPagina}
         />
       )}
-    </>
+    </Secao>
   )
 }
 

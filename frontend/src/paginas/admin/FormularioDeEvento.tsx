@@ -5,28 +5,12 @@ import { alterarEvento, buscarParaAdmin, criarEvento } from '../../api/eventos'
 import { ErroDaApi } from '../../api/cliente'
 import type { CategoriaDoEvento, EventoFormulario, SetorFormulario } from '../../api/tipos'
 import { Capa } from '../../componentes/Capa'
+import { ROTULOS_DE_CATEGORIA } from '../../componentes/categorias'
 import { Carregando, Erro, mensagemDe } from '../../componentes/Estados'
-import { Botao, Campo, Cartao, Selecao, SeloDeEvento } from '../../componentes/Ui'
+import { Botao, Campo, Cartao, Secao, Selecao, SeloDeEvento } from '../../componentes/Ui'
 import { deCampoLocal, dinheiro, paraCampoLocal } from '../../componentes/formato'
 
 const SETOR_NOVO: SetorFormulario = { name: '', price: 0, rowsCount: 10, seatsPerRow: 20 }
-
-/*
-  Rotulos das categorias.
-
-  O valor e o mesmo enum do backend; o texto e so apresentacao. Ficam juntos aqui, e nao numa
-  lista derivada do tipo, porque TypeScript apaga o tipo na compilacao — nao ha como percorrer
-  `CategoriaDoEvento` em tempo de execucao. O `Record` garante o que importa: acrescentar uma
-  categoria no backend e esquecer o rotulo vira erro de compilacao, e nao um seletor incompleto.
-*/
-const CATEGORIAS: Record<CategoriaDoEvento, string> = {
-  SHOWS: 'Shows',
-  FESTIVAIS: 'Festivais',
-  ESPORTES: 'Esportes',
-  TECNOLOGIA: 'Tecnologia',
-  TEATRO: 'Teatro',
-  FESTAS: 'Festas',
-}
 
 const VAZIO: EventoFormulario = {
   name: '',
@@ -136,7 +120,7 @@ export function FormularioDeEvento() {
   if (editando && existente.isError) return <Erro erro={existente.error} />
 
   return (
-    <div className="mx-auto max-w-xl">
+    <Secao largura="estreita">
       <Link to="/admin/eventos" className="text-sm text-suave hover:text-texto">
         &larr; voltar
       </Link>
@@ -202,7 +186,7 @@ export function FormularioDeEvento() {
             onChange={(e) => alterar('category', e.target.value as CategoriaDoEvento)}
             erro={campos?.category}
           >
-            {Object.entries(CATEGORIAS).map(([valor, rotulo]) => (
+            {Object.entries(ROTULOS_DE_CATEGORIA).map(([valor, rotulo]) => (
               <option key={valor} value={valor}>
                 {rotulo}
               </option>
@@ -348,6 +332,6 @@ export function FormularioDeEvento() {
           )}
         </form>
       </Cartao>
-    </div>
+    </Secao>
   )
 }

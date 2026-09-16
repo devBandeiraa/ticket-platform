@@ -90,6 +90,31 @@ export function Selecao({
   )
 }
 
+/**
+ * Container das paginas comuns.
+ *
+ * <p>Passou a existir quando o container saiu do `<main>`: a faixa escura do hero precisa
+ * sangrar ate a borda da janela, e um `max-w` em volta de tudo a transformaria numa caixa
+ * centralizada. Cada pagina declara agora a propria largura.
+ *
+ * <p>Existe como componente, e nao como as tres classes repetidas em dez telas, porque a largura
+ * do conteudo e uma decisao unica — e com a repeticao bastaria uma pagina ficar para tras para o
+ * texto pular de largura ao navegar.
+ */
+export function Secao({
+  children,
+  largura = 'padrao',
+  className = '',
+}: {
+  children: ReactNode
+  /** `estreita` para formularios, onde linha longa demais atrapalha a leitura. */
+  largura?: 'padrao' | 'estreita'
+  className?: string
+}) {
+  const limite = largura === 'estreita' ? 'max-w-xl' : 'max-w-6xl'
+  return <div className={`mx-auto w-full ${limite} px-4 py-10 ${className}`}>{children}</div>
+}
+
 export function Cartao({
   children,
   className = '',

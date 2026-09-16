@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cancelarReserva, listarMinhas, pagar } from '../api/reservas'
 import type { Reserva } from '../api/tipos'
 import { Carregando, Erro, Vazio, mensagemDe } from '../componentes/Estados'
-import { Botao, Cartao, Paginacao, SeloDeReserva } from '../componentes/Ui'
+import { Botao, Cartao, Paginacao, Secao, SeloDeReserva } from '../componentes/Ui'
 import { ContagemRegressiva } from '../componentes/ContagemRegressiva'
 import { dataEHora, dinheiro } from '../componentes/formato'
 
@@ -24,7 +24,7 @@ export function MinhasReservas() {
   }
 
   return (
-    <>
+    <Secao>
       <h1 className="mb-6 text-2xl font-semibold">Minhas reservas</h1>
 
       {consulta.isPending && <Carregando />}
@@ -53,7 +53,7 @@ export function MinhasReservas() {
           aoMudar={setPagina}
         />
       )}
-    </>
+    </Secao>
   )
 }
 

@@ -7,7 +7,7 @@ import { ErroDaApi } from '../api/cliente'
 import { useSessao } from '../auth/SessaoContext'
 import { Carregando, Erro, Vazio } from '../componentes/Estados'
 import { NumeroAnimado } from '../componentes/NumeroAnimado'
-import { Botao, Cartao, Estatistica, Selecao } from '../componentes/Ui'
+import { Botao, Cartao, Estatistica, Secao, Selecao } from '../componentes/Ui'
 
 interface Resultado {
   confirmadas: number
@@ -105,7 +105,7 @@ export function DemoConcorrencia() {
   const recusadas = resultado ? resultado.disparadas - resultado.confirmadas : 0
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <Secao>
       <div className="text-center">
         <h1 className="text-3xl font-semibold tracking-tight">Teste de concorrencia</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-pretty text-suave">
@@ -323,7 +323,7 @@ export function DemoConcorrencia() {
           )}
         </>
       )}
-    </div>
+    </Secao>
   )
 }
 

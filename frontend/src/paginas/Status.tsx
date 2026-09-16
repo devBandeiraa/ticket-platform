@@ -3,7 +3,7 @@ import { consultarStatus } from '../api/status'
 import type { EstadoDoCircuito, ServicoNoStatus } from '../api/status'
 import { Carregando, Erro } from '../componentes/Estados'
 import { tempoNoAr } from '../componentes/formato'
-import { Cartao } from '../componentes/Ui'
+import { Cartao, Secao } from '../componentes/Ui'
 
 /** Intervalo entre coletas. */
 const INTERVALO_MS = 5_000
@@ -41,7 +41,7 @@ export function Status() {
   const fora = servicos.filter((servico) => !servico.noAr)
 
   return (
-    <div className="space-y-8">
+    <Secao className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">Status da plataforma</h1>
         <p className="mt-2 max-w-2xl text-sm text-suave">
@@ -80,7 +80,7 @@ export function Status() {
           </div>
         )}
       </section>
-    </div>
+    </Secao>
   )
 }
 
