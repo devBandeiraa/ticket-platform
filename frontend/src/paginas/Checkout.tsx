@@ -152,7 +152,7 @@ export function Checkout() {
     mutationFn: () => pagar(id, forma),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reserva', id] })
-      queryClient.invalidateQueries({ queryKey: ['minhas-reservas'] })
+      queryClient.invalidateQueries({ queryKey: ['meus-ingressos'] })
       setEtapa(3)
     },
   })
@@ -340,7 +340,7 @@ export function Checkout() {
 
               {/* O ingresso desenhado, com QR, e do estagio G. Ate la, o link leva a lista. */}
               <Link
-                to="/minhas-reservas"
+                to="/meus-ingressos"
                 className="mt-6 inline-flex rounded-cartao bg-marca px-4 py-2 text-sm font-medium text-superficie transition-colors hover:bg-marca-forte"
               >
                 Ver meus ingressos

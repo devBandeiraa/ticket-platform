@@ -10,7 +10,7 @@ import { Home } from './paginas/Home'
 import { DetalheDoEvento } from './paginas/DetalheDoEvento'
 import { Login } from './paginas/Login'
 import { Cadastro } from './paginas/Cadastro'
-import { MinhasReservas } from './paginas/MinhasReservas'
+import { MeusIngressos } from './paginas/MeusIngressos'
 import { EventosAdmin } from './paginas/admin/EventosAdmin'
 import { FormularioDeEvento } from './paginas/admin/FormularioDeEvento'
 import { ReservasAdmin } from './paginas/admin/ReservasAdmin'
@@ -54,7 +54,7 @@ export default function App() {
 
               {/* exigem sessao */}
               <Route element={<RotaProtegida />}>
-                <Route path="minhas-reservas" element={<MinhasReservas />} />
+                <Route path="meus-ingressos" element={<MeusIngressos />} />
                 {/* Protegida: a reserva pertence a alguem, e o backend devolve 403 para o
                     token de outro usuario. Sem a guarda, quem nao esta logado veria um erro
                     de API no lugar da tela de entrar. */}

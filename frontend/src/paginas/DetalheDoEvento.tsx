@@ -80,7 +80,7 @@ export function DetalheDoEvento() {
     onSuccess: (criada) => {
       queryClient.invalidateQueries({ queryKey: ['disponibilidade', id] })
       queryClient.invalidateQueries({ queryKey: ['mapa', id] })
-      queryClient.invalidateQueries({ queryKey: ['minhas-reservas'] })
+      queryClient.invalidateQueries({ queryKey: ['meus-ingressos'] })
       // Segue direto para o checkout. A reserva ja esta segurando os lugares com prazo, e
       // mandar a pessoa a uma lista para so entao pagar gasta parte desse prazo em navegacao.
       navegar(`/checkout/${criada.id}`)
