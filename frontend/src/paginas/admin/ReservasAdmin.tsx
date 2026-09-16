@@ -78,7 +78,7 @@ export function ReservasAdmin() {
             }}
             className={`rounded-md px-3 py-1.5 text-sm transition ${
               status === filtro.valor
-                ? 'bg-marca text-fundo'
+                ? 'bg-marca text-superficie'
                 : 'border border-borda text-suave hover:text-texto'
             }`}
           >

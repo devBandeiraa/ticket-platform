@@ -30,10 +30,10 @@ function classesDoAssento(assento: AssentoDoMapa, selecionado: boolean): string 
   if (selecionado) {
     // Selecionado e o unico estado preenchido com a cor de marca, e ganha anel para nao
     // depender so da cor.
-    return 'bg-marca text-fundo ring-2 ring-marca ring-offset-2 ring-offset-fundo'
+    return 'bg-marca text-superficie ring-2 ring-marca ring-offset-2 ring-offset-papel'
   }
   if (assento.status === 'FREE') {
-    return 'border border-borda-clara bg-superficie/70 text-suave hover:border-marca hover:text-marca'
+    return 'border border-borda-forte bg-superficie/70 text-suave hover:border-marca hover:text-marca'
   }
   // Ocupado: risco diagonal, cursor de bloqueio e contraste baixo de proposito.
   return 'cursor-not-allowed border border-borda bg-borda/40 text-suave/40 assento-ocupado'
@@ -228,7 +228,7 @@ function SetorDoMapa({
 
 function Legenda() {
   const estados = [
-    { rotulo: 'livre', classe: 'border border-borda-clara bg-superficie/70' },
+    { rotulo: 'livre', classe: 'border border-borda-forte bg-superficie/70' },
     { rotulo: 'seu', classe: 'bg-marca' },
     { rotulo: 'ocupado', classe: 'border border-borda bg-borda/40 assento-ocupado' },
   ]

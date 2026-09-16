@@ -16,14 +16,43 @@ function Item({ para, children }: { para: string; children: React.ReactNode }) {
       {({ isActive }) => (
         <>
           {children}
-          {/* Sublinhado em vez de fundo preenchido: sobre o ceu estrelado, um retangulo solido
-              atras do item ativo brigava com o fundo. A linha marca sem tapar. */}
+          {/* Sublinhado em vez de fundo preenchido: um retangulo solido atras do item ativo
+              engrossa o cabecalho e briga com a faixa escura logo abaixo. A linha marca sem
+              tapar, e continua legivel nas duas familias de cor. */}
           {isActive && (
             <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-marca" />
           )}
         </>
       )}
     </NavLink>
+  )
+}
+
+/**
+ * Faixa escura.
+ *
+ * O ceu estrelado vive aqui dentro, e nao mais atras da pagina inteira. A troca veio junto da
+ * identidade nova: area de leitura passou a ser papel claro, e o ceu nao atravessa papel. Onde
+ * o escuro permaneceu — topo, rodape, mapa de assentos, telas tecnicas — ele continua fazendo
+ * o que fazia.
+ *
+ * `isolate` cria um contexto de empilhamento proprio, para o `-z-10` do ceu ficar atras do
+ * conteudo DESTA faixa sem escapar para tras do resto da pagina.
+ */
+export function FaixaNoite({
+  children,
+  comCeu = false,
+  className = '',
+}: {
+  children: React.ReactNode
+  comCeu?: boolean
+  className?: string
+}) {
+  return (
+    <div className={`faixa-noite relative isolate overflow-hidden ${className}`}>
+      {comCeu && <FundoEstrelado className="ceu-mascarado absolute inset-0 -z-10 opacity-60" />}
+      {children}
+    </div>
   )
 }
 
@@ -38,22 +67,10 @@ export function Layout() {
   }
 
   return (
-    <div className="relative min-h-screen">
-      <FundoEstrelado className="ceu-mascarado opacity-70" />
-
-      {/* Halo da marca no topo. Da profundidade ao cabecalho e amarra o azul do tema ao ceu,
-          que sem ele fica parecendo um papel de parede colado por cima de outro projeto. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-96 bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,color-mix(in_oklch,var(--color-marca)_18%,transparent),transparent)]"
-      />
-
-      <header className="sticky top-0 z-20 border-b border-borda/70 bg-fundo/70 backdrop-blur-xl">
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-20 border-b border-borda bg-papel/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-          <Link
-            to="/"
-            className="mr-2 font-semibold transition-opacity hover:opacity-80"
-          >
+          <Link to="/" className="mr-2 font-semibold transition-opacity hover:opacity-80">
             ticket<span className="text-marca">.platform</span>
           </Link>
 
@@ -69,7 +86,11 @@ export function Layout() {
           <div className="ml-auto flex items-center gap-3">
             {usuario ? (
               <>
-                <span className="hidden text-sm text-suave sm:inline">{usuario.email}</span>
+                {/* O nome vem do claim `name`. Token emitido antes da Fase 23 nao o tem, e
+                    nesse caso o email serve — ver AuthenticatedUser. */}
+                <span className="hidden text-sm text-suave sm:inline">
+                  {usuario.fullName ?? usuario.email}
+                </span>
                 <Botao variante="neutro" onClick={sairEVoltar}>
                   Sair
                 </Botao>
@@ -84,7 +105,7 @@ export function Layout() {
                 </Link>
                 <Link
                   to="/cadastro"
-                  className="rounded-md bg-marca px-4 py-2 text-sm font-medium text-fundo shadow-lg shadow-marca/20 transition-all duration-200 hover:bg-marca-forte hover:shadow-xl hover:shadow-marca/30 active:scale-[0.97]"
+                  className="rounded-md bg-marca px-4 py-2 text-sm font-medium text-superficie transition-colors hover:bg-marca-forte active:scale-[0.97]"
                 >
                   Criar conta
                 </Link>
@@ -96,16 +117,20 @@ export function Layout() {
 
       {/* A chave force a animacao de entrada a repetir a cada troca de rota. Sem ela o React
           reaproveita o no e a transicao so aconteceria no primeiro carregamento. */}
-      <main key={local.pathname} className="mx-auto max-w-5xl animate-subir px-4 py-10">
+      {/* O container fica aqui por enquanto. Quando a home ganhar o hero de largura total, ele
+          desce para cada pagina — uma faixa escura que sangra ate a borda nao cabe dentro de um
+          `max-w`, e tirar o container agora deixaria todas as telas sem margem antes de haver
+          quem as redesenhe. */}
+      <main key={local.pathname} className="mx-auto w-full max-w-5xl flex-1 animate-subir px-4 py-10">
         <Outlet />
       </main>
 
-      <footer className="mx-auto max-w-5xl px-4 pb-10 text-xs text-suave/70">
-        <div className="border-t border-borda/60 pt-6">
+      <FaixaNoite className="mt-16">
+        <footer className="mx-auto max-w-5xl px-4 py-10 text-xs text-suave">
           Projeto de estudo em microsservicos — o estoque nunca vende alem da capacidade, e a
-          garantia mora num <code className="text-suave">UPDATE</code> condicional no PostgreSQL.
-        </div>
-      </footer>
+          garantia mora num <code className="text-texto">UPDATE</code> condicional no PostgreSQL.
+        </footer>
+      </FaixaNoite>
     </div>
   )
 }
