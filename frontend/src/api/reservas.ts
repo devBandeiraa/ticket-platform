@@ -1,5 +1,5 @@
 import { query, requisitar } from './cliente'
-import type { Pagina, Reserva, StatusDaReserva } from './tipos'
+import type { FormaDePagamento, Pagina, Reserva, StatusDaReserva } from './tipos'
 
 /**
  * Cria uma reserva.
@@ -51,8 +51,17 @@ export function reservarMelhorDisponivel(
   })
 }
 
-export function pagar(id: string): Promise<Reserva> {
-  return requisitar(`/bookings/${id}/pay`, { metodo: 'POST' })
+/**
+ * Paga a reserva.
+ *
+ * O valor NAO vai daqui: ja esta gravado na reserva desde a criacao, taxa inclusa. Envia-lo
+ * permitiria pagar mil reais de ingresso mandando dez.
+ *
+ * A forma e opcional no servidor — ate a Fase 22 este endpoint nao recebia corpo algum — mas o
+ * checkout sempre informa, porque e uma escolha que o comprador fez e que o ingresso mostra.
+ */
+export function pagar(id: string, forma: FormaDePagamento): Promise<Reserva> {
+  return requisitar(`/bookings/${id}/pay`, { metodo: 'POST', corpo: { method: forma } })
 }
 
 export function cancelarReserva(id: string): Promise<void> {

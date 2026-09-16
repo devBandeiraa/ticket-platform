@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import type { AssentoDoMapa } from '../api/tipos'
+import type { AssentoDoMapa, FaixaDeSetor } from '../api/tipos'
 import { dinheiro } from './formato'
 
 /**
@@ -26,20 +26,29 @@ const ASSENTOS_POR_BLOCO = 5
 
 type Posicao = { fila: number; coluna: number }
 
-function classesDoAssento(assento: AssentoDoMapa, selecionado: boolean): string {
+function classesDoAssento(
+  assento: AssentoDoMapa,
+  selecionado: boolean,
+  vip: boolean,
+): string {
   if (selecionado) {
     // Selecionado e o unico estado preenchido com a cor de marca, e ganha anel para nao
     // depender so da cor.
     return 'bg-marca text-superficie ring-2 ring-marca ring-offset-2 ring-offset-papel'
   }
   if (assento.status === 'FREE') {
-    return 'border border-borda-forte bg-superficie/70 text-suave hover:border-marca hover:text-marca'
+    // VIP livre se distingue por BORDA mais grossa e cor de alerta, e nao por um quarto tom de
+    // cinza: a diferenca entre "livre" e "livre VIP" precisa sobreviver a escala de cinza, e
+    // dois cinzas proximos nao sobrevivem.
+    return vip
+      ? 'border-2 border-alerta bg-superficie text-alerta hover:border-marca hover:text-marca'
+      : 'border border-borda-forte bg-superficie/70 text-suave hover:border-marca hover:text-marca'
   }
   // Ocupado: risco diagonal, cursor de bloqueio e contraste baixo de proposito.
   return 'cursor-not-allowed border border-borda bg-borda/40 text-suave/40 assento-ocupado'
 }
 
-function descrever(assento: AssentoDoMapa, selecionado: boolean): string {
+function descrever(assento: AssentoDoMapa, selecionado: boolean, vip: boolean): string {
   const situacao = selecionado
     ? 'selecionado por voce'
     : assento.status === 'FREE'
@@ -48,17 +57,32 @@ function descrever(assento: AssentoDoMapa, selecionado: boolean): string {
         ? 'vendido'
         : 'reservado por outra pessoa'
 
-  return `${assento.sector}, fila ${assento.row}, lugar ${assento.number}, ${dinheiro(assento.price)}, ${situacao}`
+  // A faixa entra no texto, e nao so na borda: quem navega por leitor de tela nao ve a borda.
+  const faixa = vip ? ', setor VIP' : ''
+
+  return `${assento.sector}${faixa}, fila ${assento.row}, lugar ${assento.number}, ${dinheiro(assento.price)}, ${situacao}`
 }
 
 export function MapaDeAssentos({
   assentos,
   selecionados,
   aoAlternar,
+  faixaPorSetor,
 }: {
   assentos: AssentoDoMapa[]
   selecionados: Set<string>
   aoAlternar: (assento: AssentoDoMapa) => void
+  /**
+   * Faixa de cada setor, por NOME.
+   *
+   * <p>O mapa vem do booking-service, que conhece o estado de cada lugar e nao a oferta
+   * comercial; a faixa vem do event-service, junto do detalhe do evento. A tela ja carrega os
+   * dois e os casa aqui pelo nome do setor, que e a chave natural — ver a migration `V3`.
+   *
+   * <p>Opcional: sem o mapa, todo setor e tratado como comum. Um evento antigo, ou o detalhe
+   * ainda carregando, nao pode deixar o mapa sem desenhar.
+   */
+  faixaPorSetor?: Map<string, FaixaDeSetor>
 }) {
   // Agrupa por setor e por fila, preservando a ordem em que o servidor devolveu — ela ja vem
   // por setor, fila e numero.
@@ -98,10 +122,11 @@ export function MapaDeAssentos({
           setor={setor}
           selecionados={selecionados}
           aoAlternar={aoAlternar}
+          vip={faixaPorSetor?.get(setor.nome) === 'VIP'}
         />
       ))}
 
-      <Legenda />
+      <Legenda temVip={[...(faixaPorSetor?.values() ?? [])].includes('VIP')} />
     </div>
   )
 }
@@ -117,10 +142,12 @@ function SetorDoMapa({
   setor,
   selecionados,
   aoAlternar,
+  vip,
 }: {
   setor: SetorAgrupado
   selecionados: Set<string>
   aoAlternar: (assento: AssentoDoMapa) => void
+  vip: boolean
 }) {
   // O assento que participa da ordem de tabulacao. As setas movem esta posicao, e o foco vai
   // junto — e o roving tabindex.
@@ -167,9 +194,21 @@ function SetorDoMapa({
         </p>
       </header>
 
-      {/* Rola sozinho no celular: a casa tem largura fixa em lugares, e encolher o assento ate
-          caber deixaria o alvo de toque menor do que um dedo. */}
-      <div className="overflow-x-auto pb-2">
+      {/* Rolagem horizontal PROPRIA, e nao da pagina: a casa tem largura fixa em lugares, e
+          encolher o assento ate caber deixaria o alvo de toque menor do que um dedo. Sem isto a
+          pagina inteira ganharia barra horizontal, arrastando cabecalho e rodape junto para ver
+          o assento 25.
+
+          `tabIndex=0` porque um container rolavel precisa ser alcancavel pelo teclado. As setas
+          do roving tabindex movem o foco DENTRO da grade, entao quem chega ao ultimo assento
+          visivel e rolado ate ele pelo proprio navegador — mas quem so quer olhar o mapa, sem
+          escolher, precisa de um jeito de rolar sem entrar na grade. */}
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label={`Rolagem do setor ${setor.nome}`}
+        className="overflow-x-auto pb-2"
+      >
         <div
           ref={grade}
           role="grid"
@@ -200,12 +239,12 @@ function SetorDoMapa({
                       // Roving tabindex: so um assento do setor entra na ordem de tabulacao.
                       tabIndex={ehAtivo ? 0 : -1}
                       disabled={ocupado}
-                      aria-label={descrever(assento, selecionado)}
+                      aria-label={descrever(assento, selecionado, vip)}
                       aria-pressed={selecionado}
                       onFocus={() => setAtivo({ fila: indiceDaFila, coluna: indiceDaColuna })}
                       onKeyDown={(e) => aoTeclar(e, { fila: indiceDaFila, coluna: indiceDaColuna })}
                       onClick={() => aoAlternar(assento)}
-                      className={`size-6 shrink-0 rounded text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca ${classesDoAssento(assento, selecionado)}`}
+                      className={`size-6 shrink-0 rounded text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca ${classesDoAssento(assento, selecionado, vip)}`}
                     >
                       <span aria-hidden="true">{assento.number}</span>
                     </button>
@@ -226,9 +265,12 @@ function SetorDoMapa({
   )
 }
 
-function Legenda() {
+function Legenda({ temVip }: { temVip: boolean }) {
   const estados = [
     { rotulo: 'livre', classe: 'border border-borda-forte bg-superficie/70' },
+    // So aparece quando a casa tem setor VIP. Uma legenda explicando um estado que nao existe
+    // no mapa faz a pessoa procurar na tela o que ela nao vai achar.
+    ...(temVip ? [{ rotulo: 'VIP livre', classe: 'border-2 border-alerta bg-superficie' }] : []),
     { rotulo: 'seu', classe: 'bg-marca' },
     { rotulo: 'ocupado', classe: 'border border-borda bg-borda/40 assento-ocupado' },
   ]

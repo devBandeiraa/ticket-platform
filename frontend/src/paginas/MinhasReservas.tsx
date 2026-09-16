@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { cancelarReserva, listarMinhas, pagar } from '../api/reservas'
+import { cancelarReserva, listarMinhas } from '../api/reservas'
 import type { Reserva } from '../api/tipos'
 import { Carregando, Erro, Vazio, mensagemDe } from '../componentes/Estados'
 import { Botao, Cartao, Paginacao, Secao, SeloDeReserva } from '../componentes/Ui'
@@ -58,15 +58,14 @@ export function MinhasReservas() {
 }
 
 function LinhaDeReserva({ reserva, aoMudar }: { reserva: Reserva; aoMudar: () => void }) {
-  const pagamento = useMutation({ mutationFn: () => pagar(reserva.id), onSuccess: aoMudar })
   const cancelamento = useMutation({
     mutationFn: () => cancelarReserva(reserva.id),
     onSuccess: aoMudar,
   })
 
   const pendente = reserva.status === 'PENDING'
-  const ocupado = pagamento.isPending || cancelamento.isPending
-  const falha = pagamento.error ?? cancelamento.error
+  const ocupado = cancelamento.isPending
+  const falha = cancelamento.error
 
   return (
     <Cartao>
@@ -122,10 +121,16 @@ function LinhaDeReserva({ reserva, aoMudar }: { reserva: Reserva; aoMudar: () =>
       </div>
 
       {pendente && (
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-borda pt-4">
-          <Botao disabled={ocupado} onClick={() => pagamento.mutate()}>
-            {pagamento.isPending ? 'Pagando...' : 'Pagar'}
-          </Botao>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-borda pt-4">
+          {/* Leva ao checkout em vez de pagar aqui. O pagamento passou a exigir uma escolha —
+              cartao ou Pix — e um botao que decide sozinho por quem clicou nao e um atalho, e
+              sim uma escolha tomada no lugar da pessoa. */}
+          <Link
+            to={`/checkout/${reserva.id}`}
+            className="rounded-cartao bg-marca px-4 py-2 text-sm font-medium text-superficie transition-colors hover:bg-marca-forte"
+          >
+            Finalizar compra
+          </Link>
           <Botao variante="perigo" disabled={ocupado} onClick={() => cancelamento.mutate()}>
             Cancelar
           </Botao>
