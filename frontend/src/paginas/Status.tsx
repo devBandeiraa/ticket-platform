@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { consultarStatus } from '../api/status'
 import type { EstadoDoCircuito, ServicoNoStatus } from '../api/status'
 import { Carregando, Erro } from '../componentes/Estados'
+import { FaixaNoite } from '../componentes/Layout'
 import { tempoNoAr } from '../componentes/formato'
 import { Cartao, Secao } from '../componentes/Ui'
 
@@ -34,53 +35,81 @@ export function Status() {
     retry: false,
   })
 
-  if (status.isPending) return <Carregando texto="Consultando a plataforma..." />
-  if (status.error) return <ErroDeColeta erro={status.error} />
+  /*
+    Carregando e erro tambem vivem na faixa escura.
+
+    Sem isto, a pagina trocaria de familia de cor conforme o backend responde ou nao: o painel
+    apareceria escuro quando tudo esta no ar e claro justamente quando algo caiu — que e o
+    momento em que a pessoa mais precisa reconhecer a tela onde esta.
+  */
+  if (status.isPending) {
+    return (
+      <FaixaNoite className="min-h-screen">
+        <Secao>
+          <Carregando texto="Consultando a plataforma..." />
+        </Secao>
+      </FaixaNoite>
+    )
+  }
+  if (status.error) {
+    return (
+      <FaixaNoite className="min-h-screen">
+        <Secao>
+          <ErroDeColeta erro={status.error} />
+        </Secao>
+      </FaixaNoite>
+    )
+  }
 
   const { servicos, circuitos, coletadoEm } = status.data
   const fora = servicos.filter((servico) => !servico.noAr)
 
   return (
-    <Secao className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Status da plataforma</h1>
-        <p className="mt-2 max-w-2xl text-sm text-suave">
-          Os numeros vem do Prometheus, que coleta cada servico a cada dez segundos. Esta pagina
-          pergunta ao gateway a cada cinco.
-        </p>
-      </header>
-
-      <Resumo total={servicos.length} fora={fora.length} coletadoEm={coletadoEm} />
-
-      <section>
-        <h2 className="mb-3 text-sm tracking-wide text-suave uppercase">Servicos</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {servicos.map((servico) => (
-            <CartaoDeServico key={servico.nome} servico={servico} />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm tracking-wide text-suave uppercase">Circuit breakers</h2>
-        {circuitos.length === 0 ? (
-          <p className="text-sm text-suave">
-            Nenhum circuito registrado ainda. Eles aparecem depois da primeira chamada entre
-            servicos.
+    /* Mesma razao da demo de concorrencia: painel de estado se le melhor no escuro, e as duas
+       sao as telas tecnicas que a Fase 24 deixou de fora do papel. Sem ceu aqui — a pagina ja
+       tem pontos piscando de verdade, e estrela ao fundo competiria com eles. */
+    <FaixaNoite className="min-h-screen">
+      <Secao className="space-y-8">
+        <header>
+          <h1 className="text-2xl font-semibold">Status da plataforma</h1>
+          <p className="mt-2 max-w-2xl text-sm text-suave">
+            Os numeros vem do Prometheus, que coleta cada servico a cada dez segundos. Esta pagina
+            pergunta ao gateway a cada cinco.
           </p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {circuitos.map((circuito) => (
-              <CartaoDeCircuito
-                key={circuito.nome}
-                nome={circuito.nome}
-                estado={circuito.estado}
-              />
+        </header>
+
+        <Resumo total={servicos.length} fora={fora.length} coletadoEm={coletadoEm} />
+
+        <section>
+          <h2 className="mb-3 text-sm tracking-wide text-suave uppercase">Servicos</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {servicos.map((servico) => (
+              <CartaoDeServico key={servico.nome} servico={servico} />
             ))}
           </div>
-        )}
-      </section>
-    </Secao>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm tracking-wide text-suave uppercase">Circuit breakers</h2>
+          {circuitos.length === 0 ? (
+            <p className="text-sm text-suave">
+              Nenhum circuito registrado ainda. Eles aparecem depois da primeira chamada entre
+              servicos.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {circuitos.map((circuito) => (
+                <CartaoDeCircuito
+                  key={circuito.nome}
+                  nome={circuito.nome}
+                  estado={circuito.estado}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </Secao>
+    </FaixaNoite>
   )
 }
 

@@ -81,8 +81,9 @@ export function Layout() {
             <Item para="/">Eventos</Item>
             <Item para="/explorar">Explorar</Item>
             {usuario && <Item para="/meus-ingressos">Meus ingressos</Item>}
-            {ehAdmin && <Item para="/admin/eventos">Gerenciar</Item>}
-            {ehAdmin && <Item para="/admin/reservas">Painel</Item>}
+            {ehAdmin && <Item para="/admin">Painel</Item>}
+            {ehAdmin && <Item para="/admin/eventos">Meus eventos</Item>}
+            {ehAdmin && <Item para="/admin/reservas">Reservas</Item>}
             <Item para="/demo/concorrencia">Concorrencia</Item>
             <Item para="/status">Status</Item>
           </nav>
