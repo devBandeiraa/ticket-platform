@@ -12,6 +12,7 @@ import { Login } from './paginas/Login'
 import { Cadastro } from './paginas/Cadastro'
 import { MeusIngressos } from './paginas/MeusIngressos'
 import { EventosAdmin } from './paginas/admin/EventosAdmin'
+import { Painel } from './paginas/admin/Painel'
 import { FormularioDeEvento } from './paginas/admin/FormularioDeEvento'
 import { ReservasAdmin } from './paginas/admin/ReservasAdmin'
 import { DemoConcorrencia } from './paginas/DemoConcorrencia'
@@ -63,6 +64,7 @@ export default function App() {
 
               {/* exigem ADMIN */}
               <Route element={<RotaProtegida exigeAdmin />}>
+                <Route path="admin" element={<Painel />} />
                 <Route path="admin/eventos" element={<EventosAdmin />} />
                 <Route path="admin/eventos/novo" element={<FormularioDeEvento />} />
                 <Route path="admin/eventos/:id" element={<FormularioDeEvento />} />
