@@ -37,6 +37,7 @@ function IngressoDeVitrine() {
           Admit one
         </span>
       }
+      comoTitulo={false}
       className="w-full max-w-md rotate-[-2deg] transition-transform duration-500 hover:rotate-0"
     />
   )

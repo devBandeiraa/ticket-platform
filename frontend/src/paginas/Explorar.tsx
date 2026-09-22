@@ -155,7 +155,12 @@ export function Explorar() {
         ))}
       </div>
 
-      <div className="mt-10">
+      <section className="mt-10">
+        {/* Titulo so para leitor de tela. Visivelmente redundante — a pagina inteira E o
+            resultado —, mas sem ele os cartoes (h3) ficariam sob o h1 sem nivel intermediario,
+            e quem navega por titulos perderia a fronteira entre os filtros e a lista. */}
+        <h2 className="sr-only">Resultados</h2>
+
         {consulta.isPending && <EsqueletoDeCartoes quantos={POR_PAGINA} />}
         {consulta.isError && <Erro erro={consulta.error} />}
 
@@ -186,7 +191,7 @@ export function Explorar() {
             aoMudar={(nova) => ajustar({ pagina: String(nova) })}
           />
         )}
-      </div>
+      </section>
     </div>
   )
 }

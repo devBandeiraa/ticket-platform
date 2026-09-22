@@ -41,6 +41,14 @@ export interface TicketProps {
   setor?: string
   /** Conteudo do canhoto — o QR Code, na confirmacao da compra. */
   canhoto?: React.ReactNode
+  /**
+   * Se o nome do evento entra no sumario do documento.
+   *
+   * <p>Verdadeiro onde o ingresso E conteudo — a lista de ingressos, a confirmacao da compra.
+   * Falso no hero, onde ele e vitrine: um `h3` ali apareceria no sumario antes de qualquer
+   * `h2`, e um leitor de tela anunciaria um nivel que pula. O visual nao muda.
+   */
+  comoTitulo?: boolean
   className?: string
 }
 
@@ -73,8 +81,10 @@ export function Ticket({
   comprador,
   setor,
   canhoto,
+  comoTitulo = true,
   className = '',
 }: TicketProps) {
+  const Titulo = comoTitulo ? 'h3' : 'p'
   // `useId` e nao um contador de modulo: dois ingressos na mesma tela precisam de ids de filtro
   // distintos, ou o segundo reaproveita a textura do primeiro.
   const idTextura = `${useId()}-textura`
@@ -99,9 +109,9 @@ export function Ticket({
             {chamada}
           </p>
 
-          <h3 className="mt-3 text-balance text-xl font-semibold leading-tight sm:text-2xl">
+          <Titulo className="mt-3 text-balance text-xl font-semibold leading-tight sm:text-2xl">
             {titulo}
-          </h3>
+          </Titulo>
 
           {(local || setor) && (
             <p className="mt-1.5 text-sm text-noite-suave">

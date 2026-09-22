@@ -1,23 +1,49 @@
+import { lazy } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ProvedorDeSessao } from './auth/SessaoContext'
 import { RotaProtegida } from './auth/RotaProtegida'
 import { Layout } from './componentes/Layout'
 import { ErroDaApi } from './api/cliente'
-import { Checkout } from './paginas/Checkout'
-import { Explorar } from './paginas/Explorar'
 import { Home } from './paginas/Home'
-import { DetalheDoEvento } from './paginas/DetalheDoEvento'
-import { Login } from './paginas/Login'
-import { Cadastro } from './paginas/Cadastro'
-import { MeusIngressos } from './paginas/MeusIngressos'
-import { EventosAdmin } from './paginas/admin/EventosAdmin'
-import { Painel } from './paginas/admin/Painel'
-import { FormularioDeEvento } from './paginas/admin/FormularioDeEvento'
-import { ReservasAdmin } from './paginas/admin/ReservasAdmin'
-import { DemoConcorrencia } from './paginas/DemoConcorrencia'
-import { Status } from './paginas/Status'
-import { NaoEncontrada } from './paginas/NaoEncontrada'
+
+/*
+  Divisao do pacote por rota.
+
+  A Home fica ESTATICA: e a primeira tela de quase todo mundo, e adiar o codigo dela trocaria um
+  pacote inicial menor por uma espera bem na abertura — o oposto do que se quer.
+
+  O resto entra sob demanda. O peso concentra-se em dois grupos que a maioria nunca abre: a area
+  administrativa, que so o organizador ve, e o ingresso digital, que carrega junto a biblioteca
+  de QR — sozinha, 42 KB dos quais ninguem precisa antes de comprar.
+*/
+const Explorar = lazy(() => import('./paginas/Explorar').then((m) => ({ default: m.Explorar })))
+const DetalheDoEvento = lazy(() =>
+  import('./paginas/DetalheDoEvento').then((m) => ({ default: m.DetalheDoEvento })),
+)
+const Checkout = lazy(() => import('./paginas/Checkout').then((m) => ({ default: m.Checkout })))
+const MeusIngressos = lazy(() =>
+  import('./paginas/MeusIngressos').then((m) => ({ default: m.MeusIngressos })),
+)
+const Login = lazy(() => import('./paginas/Login').then((m) => ({ default: m.Login })))
+const Cadastro = lazy(() => import('./paginas/Cadastro').then((m) => ({ default: m.Cadastro })))
+const DemoConcorrencia = lazy(() =>
+  import('./paginas/DemoConcorrencia').then((m) => ({ default: m.DemoConcorrencia })),
+)
+const Status = lazy(() => import('./paginas/Status').then((m) => ({ default: m.Status })))
+const NaoEncontrada = lazy(() =>
+  import('./paginas/NaoEncontrada').then((m) => ({ default: m.NaoEncontrada })),
+)
+const Painel = lazy(() => import('./paginas/admin/Painel').then((m) => ({ default: m.Painel })))
+const EventosAdmin = lazy(() =>
+  import('./paginas/admin/EventosAdmin').then((m) => ({ default: m.EventosAdmin })),
+)
+const FormularioDeEvento = lazy(() =>
+  import('./paginas/admin/FormularioDeEvento').then((m) => ({ default: m.FormularioDeEvento })),
+)
+const ReservasAdmin = lazy(() =>
+  import('./paginas/admin/ReservasAdmin').then((m) => ({ default: m.ReservasAdmin })),
+)
 
 const clienteDeQueries = new QueryClient({
   defaultOptions: {

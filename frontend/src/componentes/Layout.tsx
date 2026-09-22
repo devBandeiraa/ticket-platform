@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSessao } from '../auth/SessaoContext'
+import { Carregando } from './Estados'
 import { FundoEstrelado } from './FundoEstrelado'
 import { Botao } from './Ui'
 
@@ -126,7 +128,12 @@ export function Layout() {
           em volta a transformaria numa caixa centralizada. Cada pagina declara o proprio —
           `Secao` para as comuns, largura total para as que tem faixa. */}
       <main key={local.pathname} className="flex-1 animate-subir">
-        <Outlet />
+        {/* Um limite de Suspense so, aqui, e nao um por rota: o cabecalho e o rodape continuam
+            desenhados enquanto o pedaco da rota chega, entao quem navega ve a moldura da
+            aplicacao em vez de uma tela branca. */}
+        <Suspense fallback={<Carregando />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <FaixaNoite className="mt-16">
