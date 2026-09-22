@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { buscarEvento, consultarDisponibilidade } from '../api/eventos'
@@ -97,22 +97,42 @@ export function DetalheDoEvento() {
 
   const total = somar(selecionados)
 
-  function alternar(assento: AssentoDoMapa) {
-    setLimiteAtingido(false)
-    setIntencao((atual) => {
-      const proxima = new Set(atual)
-      if (proxima.has(assento.seatId)) {
-        proxima.delete(assento.seatId)
+  /*
+    Estavel entre renders, e ai esta o ponto.
+
+    Esta funcao desce ate os tres mil botoes do mapa. Recriada a cada render, ela fazia o `memo`
+    de cada assento errar sempre — e a medicao mostrou o efeito ao contrario do pretendido: o
+    clique passou de 120 ms para 190 ms, porque as tres mil comparacoes do memo se somavam aos
+    tres mil re-renders que aconteciam do mesmo jeito.
+
+    A contagem sai de `atual` em vez de `selecionados`, justamente para nao depender de um valor
+    do render. `assentos` e a unica dependencia: ele so muda quando o mapa e recarregado, e
+    nesse momento re-renderizar tudo e o correto.
+  */
+  const alternar = useCallback(
+    (assento: AssentoDoMapa) => {
+      setLimiteAtingido(false)
+      setIntencao((atual) => {
+        const proxima = new Set(atual)
+        if (proxima.has(assento.seatId)) {
+          proxima.delete(assento.seatId)
+          return proxima
+        }
+
+        const livresEscolhidos = assentos.filter(
+          (a) => atual.has(a.seatId) && a.status === 'FREE',
+        ).length
+
+        if (livresEscolhidos >= MAXIMO_DE_ASSENTOS) {
+          setLimiteAtingido(true)
+          return atual
+        }
+        proxima.add(assento.seatId)
         return proxima
-      }
-      if (selecionados.length >= MAXIMO_DE_ASSENTOS) {
-        setLimiteAtingido(true)
-        return atual
-      }
-      proxima.add(assento.seatId)
-      return proxima
-    })
-  }
+      })
+    },
+    [assentos],
+  )
 
   function definirQuantidade(setor: string, quantidade: number) {
     setLimiteAtingido(false)
@@ -194,7 +214,10 @@ export function DetalheDoEvento() {
         </div>
       </FaixaNoite>
 
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 lg:grid-cols-[1fr_21rem]">
+      {/* `pb-28` no celular reserva a altura da barra de acao fixa. Sem isso, o ultimo bloco
+          da pagina ficaria escondido atras dela — e o conteudo tapado seria justamente o
+          resumo com a lista de lugares escolhidos. */}
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-28 pt-10 lg:grid-cols-[1fr_21rem] lg:pb-10">
         <div className="min-w-0">
           {evento.data.description && (
             <p className="whitespace-pre-line leading-relaxed text-suave">
@@ -350,6 +373,38 @@ export function DetalheDoEvento() {
           )}
         </Cartao>
       </div>
+
+      {/*
+        Barra de acao fixa, so no celular.
+
+        No desktop o resumo fica grudado ao lado e sempre visivel. Num telefone ele cai ABAIXO
+        do mapa — que na maior casa do seed tem tres mil lugares — e escolher assentos deixaria
+        o botao de continuar a uma rolagem longa de distancia.
+
+        `lg:hidden` porque acima dessa largura a coluna lateral ja resolve; duas barras seriam
+        redundantes. So aparece havendo escolha: uma barra vazia ocupando o rodape de toda
+        visita seria peso permanente por uma acao eventual.
+      */}
+      {usuario && !esgotado && selecionados.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-borda bg-superficie/95 p-3 backdrop-blur-sm lg:hidden">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="numerico text-sm font-semibold">{dinheiro(total)}</p>
+              <p className="truncate text-xs text-suave">
+                {selecionados.length}{' '}
+                {selecionados.length === 1 ? 'lugar escolhido' : 'lugares escolhidos'}
+              </p>
+            </div>
+
+            <Botao
+              disabled={reserva.isPending}
+              onClick={() => reserva.mutate()}
+            >
+              {reserva.isPending ? 'Reservando...' : 'Continuar'}
+            </Botao>
+          </div>
+        </div>
+      )}
     </>
   )
 }

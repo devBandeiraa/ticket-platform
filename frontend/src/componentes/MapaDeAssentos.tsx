@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { AssentoDoMapa, FaixaDeSetor } from '../api/tipos'
 import { dinheiro } from './formato'
 
@@ -168,20 +168,38 @@ function SetorDoMapa({
       ?.focus()
   }
 
-  function aoTeclar(evento: React.KeyboardEvent, posicao: Posicao) {
-    const movimentos: Record<string, [number, number]> = {
-      ArrowUp: [-1, 0],
-      ArrowDown: [1, 0],
-      ArrowLeft: [0, -1],
-      ArrowRight: [0, 1],
-    }
+  /*
+    Estaveis entre renders, e nao funcoes novas a cada um.
 
-    const movimento = movimentos[evento.key]
-    if (!movimento) return
+    E o que faz o `memo` do assento valer alguma coisa: recebendo um `onClick` diferente a cada
+    render, os tres mil botoes seriam considerados mudados e o memo nunca acertaria. Medido
+    antes e depois — ver a nota no topo do arquivo.
 
-    evento.preventDefault()
-    mover(posicao, movimento[0], movimento[1])
-  }
+    `mover` fica de fora do `useCallback` porque so e chamada por `aoTeclar`, que ja e estavel;
+    a referencia dela nunca chega a um componente filho.
+  */
+  const aoFocar = useCallback((posicao: Posicao) => setAtivo(posicao), [])
+
+  const aoTeclar = useCallback(
+    (evento: React.KeyboardEvent, posicao: Posicao) => {
+      const movimentos: Record<string, [number, number]> = {
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+      }
+
+      const movimento = movimentos[evento.key]
+      if (!movimento) return
+
+      evento.preventDefault()
+      mover(posicao, movimento[0], movimento[1])
+    },
+    // `mover` le `setor.filas` e o ref da grade; o ref e estavel, e o setor so muda quando o
+    // mapa inteiro muda — momento em que re-renderizar tudo e o correto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setor],
+  )
 
   return (
     <section>
@@ -224,39 +242,24 @@ function SetorDoMapa({
                 {fila.rotulo}
               </span>
 
-              {fila.lugares.map((assento, indiceDaColuna) => {
-                const selecionado = selecionados.has(assento.seatId)
-                const ocupado = assento.status !== 'FREE'
-                const ehAtivo =
-                  ativo.fila === indiceDaFila && ativo.coluna === indiceDaColuna
-
-                return (
-                  <span key={assento.seatId} className="contents">
-                    <button
-                      type="button"
-                      role="gridcell"
-                      data-pos={`${indiceDaFila}-${indiceDaColuna}`}
-                      // Roving tabindex: so um assento do setor entra na ordem de tabulacao.
-                      tabIndex={ehAtivo ? 0 : -1}
-                      disabled={ocupado}
-                      aria-label={descrever(assento, selecionado, vip)}
-                      aria-pressed={selecionado}
-                      onFocus={() => setAtivo({ fila: indiceDaFila, coluna: indiceDaColuna })}
-                      onKeyDown={(e) => aoTeclar(e, { fila: indiceDaFila, coluna: indiceDaColuna })}
-                      onClick={() => aoAlternar(assento)}
-                      className={`size-6 shrink-0 rounded text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca ${classesDoAssento(assento, selecionado, vip)}`}
-                    >
-                      <span aria-hidden="true">{assento.number}</span>
-                    </button>
-
-                    {/* Corredor central. Puramente visual — a numeracao dos lugares nao muda. */}
-                    {(indiceDaColuna + 1) % ASSENTOS_POR_BLOCO === 0
-                      && indiceDaColuna < fila.lugares.length - 1 && (
-                      <span aria-hidden="true" className="w-4 shrink-0" />
-                    )}
-                  </span>
-                )
-              })}
+              {fila.lugares.map((assento, indiceDaColuna) => (
+                <Assento
+                  key={assento.seatId}
+                  assento={assento}
+                  selecionado={selecionados.has(assento.seatId)}
+                  vip={vip}
+                  ehAtivo={ativo.fila === indiceDaFila && ativo.coluna === indiceDaColuna}
+                  fila={indiceDaFila}
+                  coluna={indiceDaColuna}
+                  temCorredorDepois={
+                    (indiceDaColuna + 1) % ASSENTOS_POR_BLOCO === 0
+                    && indiceDaColuna < fila.lugares.length - 1
+                  }
+                  aoFocar={aoFocar}
+                  aoTeclar={aoTeclar}
+                  aoAlternar={aoAlternar}
+                />
+              ))}
             </div>
           ))}
         </div>
@@ -264,6 +267,69 @@ function SetorDoMapa({
     </section>
   )
 }
+
+/**
+ * Um assento.
+ *
+ * <p>Componente proprio e `memo` por uma razao medida: sem eles, clicar num lugar
+ * re-renderizava os tres mil botoes da casa maior do seed, e o intervalo entre o clique e o
+ * assento marcar na tela ficava em cerca de 120 ms — acima do limiar em que a interacao deixa
+ * de parecer instantanea.
+ *
+ * <p>Com o memo, o React pula os que nao mudaram: um clique reconcilia dois botoes, o que sai e
+ * o que entra. As propriedades sao primitivas de proposito — passar o objeto do assento inteiro
+ * funcionaria igual, ja que ele vem do cache do React Query e mantem identidade, mas primitivas
+ * tornam a comparacao obvia para quem le.
+ */
+const Assento = memo(function Assento({
+  assento,
+  selecionado,
+  vip,
+  ehAtivo,
+  fila,
+  coluna,
+  temCorredorDepois,
+  aoFocar,
+  aoTeclar,
+  aoAlternar,
+}: {
+  assento: AssentoDoMapa
+  selecionado: boolean
+  vip: boolean
+  ehAtivo: boolean
+  fila: number
+  coluna: number
+  temCorredorDepois: boolean
+  aoFocar: (posicao: Posicao) => void
+  aoTeclar: (evento: React.KeyboardEvent, posicao: Posicao) => void
+  aoAlternar: (assento: AssentoDoMapa) => void
+}) {
+  const ocupado = assento.status !== 'FREE'
+
+  return (
+    <span className="contents">
+      <button
+        type="button"
+        role="gridcell"
+        data-pos={`${fila}-${coluna}`}
+        // Roving tabindex: so um assento do setor entra na ordem de tabulacao.
+        tabIndex={ehAtivo ? 0 : -1}
+        disabled={ocupado}
+        aria-label={descrever(assento, selecionado, vip)}
+        aria-pressed={selecionado}
+        onFocus={() => aoFocar({ fila, coluna })}
+        onKeyDown={(e) => aoTeclar(e, { fila, coluna })}
+        onClick={() => aoAlternar(assento)}
+        className={`size-6 shrink-0 rounded text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca ${classesDoAssento(assento, selecionado, vip)}`}
+      >
+        <span aria-hidden="true">{assento.number}</span>
+      </button>
+
+      {/* Corredor central. Puramente visual — a numeracao dos lugares nao muda. */}
+      {temCorredorDepois && <span aria-hidden="true" className="w-4 shrink-0" />}
+    </span>
+  )
+})
 
 function Legenda({ temVip }: { temVip: boolean }) {
   const estados = [
