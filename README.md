@@ -19,7 +19,7 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](#observabilidade)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](#observabilidade)
 [![CI](https://github.com/devBandeiraa/ticket-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/devBandeiraa/ticket-platform/actions/workflows/ci.yml)
-[![Testes](https://img.shields.io/badge/testes-356-success?style=flat-square)](#testes)
+[![Testes](https://img.shields.io/badge/testes-461-success?style=flat-square)](#testes)
 [![Cobertura](https://img.shields.io/badge/cobertura-89%25-success?style=flat-square)](#testes)
 
 </div>
@@ -28,10 +28,11 @@
 
 ## Sobre este projeto
 
-É um projeto de **portfólio**, e o caminho até ele foi de estudo — catorze fases, uma por Pull
-Request, cada uma partindo de um documento de decisões escrito antes do código. Não roda em
-produção e não finge que roda: as [limitações estão listadas](#limitações-conscientes), cada uma
-com o motivo.
+É um projeto de **portfólio**, e o caminho até ele foi de estudo — trinta fases, uma por Pull
+Request, cada uma partindo de um documento de decisões escrito antes do código. As vinte
+primeiras construíram a plataforma; as dez últimas a transformaram em produto, do catálogo
+navegável ao ingresso digital. Não roda em produção e não finge que roda: as
+[limitações estão listadas](#limitações-conscientes), cada uma com o motivo.
 
 O que ele **não** é: um CRUD com um tema por cima. A diferença está no tipo de erro possível. Num
 cadastro, o pior caso é uma tela feia; aqui existe uma **invariante que pode ser violada**, e
@@ -113,6 +114,8 @@ lock. O número que importa é o que não aparece: **vendidos a mais**.
 | Testar sistema concorrente | 200 threads contra PostgreSQL, Redis e RabbitMQ reais via Testcontainers — inclusive todas disputando **o mesmo assento** |
 | Armadilhas de ORM | `Persistable`, id atribuído, a diferença entre `persist` e `merge`, e por que o Hibernate emite `INSERT` antes de `DELETE` no mesmo flush |
 | Acessibilidade sob restrição real | Um mapa de 3000 lugares navegável por teclado, com *roving tabindex* em vez de 3000 tabulações |
+| Otimizar medindo, e não supondo | A primeira tentativa de acelerar o mapa **piorou** o tempo de clique de 117 ms para 190 ms — e foi a medição, não a leitura do código, que mostrou |
+| Contraste calculado | Script que converte OKLCH para sRGB e aplica a fórmula da WCAG; ele achou duas falhas que o olho não pegaria |
 
 E também sobre o que **não** foi feito: [limitações conscientes](#limitações-conscientes) lista as
 escolhas de escopo, cada uma com o que mudaria em produção.
@@ -156,26 +159,39 @@ descartável, com o `booking-service` em duas réplicas. O passo a passo está n
 
 ## As telas
 
+<div align="center">
+
+<img src="docs/imagens/detalhe-evento.png" alt="Página de um evento: capa sob véu escuro, categoria, e o seletor de setores com Camarote marcado como VIP, descrição e três benefícios" width="100%">
+
+<sub>A identidade vem do ingresso: recorte lateral, linha de picote, textura de papel.<br/>
+Papel claro onde há leitura, faixas de noite onde há número e estado.</sub>
+
+</div>
+
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**Catálogo público**
+**Descoberta**
 
-<img src="docs/imagens/catalogo.png" alt="Catálogo de eventos" width="100%">
+<img src="docs/imagens/catalogo.png" alt="Explorar eventos, com busca, filtros de data e de categoria, e cartões com capa, etiqueta e disponibilidade" width="100%">
 
-Só eventos publicados aparecem. Um rascunho nunca chega aqui — publicar é um ato deliberado, e
-não efeito colateral de salvar.
+Filtros de data e categoria vivem **na URL**. "Olha os shows deste fim de semana" é o tipo de
+link que alguém manda por mensagem — com estado local, ele chegaria sem filtro do outro lado.
+
+O selo de disponibilidade é proporcional à casa: vinte restando numa sala de cinquenta é quase
+esgotado, e vinte numa de três mil é o começo da venda.
 
 </td>
 <td width="50%" valign="top">
 
-**Detalhe e reserva**
+**Status da plataforma**
 
-<img src="docs/imagens/detalhe-evento.png" alt="Página de um evento, com estoque disponível e botão de reservar" width="100%">
+<img src="docs/imagens/status.png" alt="Status: seis serviços no ar, com latência e tempo no ar, e o circuit breaker fechado" width="100%">
 
-O estoque disponível vem do `booking-service`, e não do catálogo: quem sabe quantos ingressos
-restam é quem os vende.
+O `noAr` vem da série `up` do Prometheus — **ele constatando que a coleta respondeu**, e não o
+serviço se declarando saudável. A diferença aparece no caso que importa: um processo travado
+continua achando que está bem.
 
 </td>
 </tr>
@@ -185,12 +201,39 @@ restam é quem os vende.
 
 **Teste de concorrência**
 
-<img src="docs/imagens/concorrencia.png" alt="Resultado do teste: 30 disparadas, 10 confirmadas, 20 recusadas, zero vendidos a mais" width="88%">
+<img src="docs/imagens/concorrencia.png" alt="Teste de concorrência: reservas disparadas em paralelo contra o mesmo evento" width="88%">
 
 <sub>O resultado vem quebrado por código de resposta, e não só por sucesso e falha:<br/>
 <code>409 SOLD_OUT</code> é o estoque acabando, <code>409 LOCK_TIMEOUT</code> é disputa pelo lock. São coisas diferentes.</sub>
 
 </div>
+
+### O mapa de assentos
+
+<div align="center">
+
+<img src="docs/imagens/selecao-de-assentos.gif" alt="Filtro por categoria, abertura do evento, escolha de três lugares pelo contador e ajuste de um quarto direto no mapa" width="100%">
+
+<sub>O contador escolhe os lugares livres mais baratos do setor; o mapa ajusta.<br/>
+Os dois escrevem no mesmo estado — por isso o quarto lugar, marcado à mão, sobe no contador.</sub>
+
+</div>
+
+Cada lugar é uma linha no banco e um botão na tela. A maior casa do catálogo de demonstração tem
+**três mil**, e isso impõe dois problemas que a tela resolve:
+
+**Teclado.** Um `Tab` por assento tornaria a página intransitável — sair da Plateia levaria duas
+mil tabulações. Cada setor é uma grade com *roving tabindex*: um assento entra na ordem de
+tabulação e as setas movem o foco dentro dela. Medido: **18 paradas de tabulação numa página com
+3000 assentos**.
+
+**Render.** Clicar num lugar re-renderizava os três mil botões, e o intervalo entre o clique e o
+assento marcar ficava em ~117 ms. Com o assento memoizado e os callbacks estáveis, caiu para
+**42 ms**. Não há virtualização de propósito: ela quebraria o roving tabindex, que depende de
+todos os assentos existirem no DOM.
+
+Cor nunca é o único diferenciador. Ocupado leva risco diagonal, VIP leva borda mais grossa, e o
+`aria-label` de cada lugar diz setor, faixa, fila, número, preço e situação por extenso.
 
 ---
 
@@ -511,9 +554,12 @@ sem commit distribuído. É também a única aresta que precisa de circuit break
 
 ## Testes
 
-**356 no total** — 316 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
-e 40 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
+**461 no total** — 362 no backend, com PostgreSQL, Redis e RabbitMQ **reais** via Testcontainers,
+e 99 no frontend. Nada de H2: o isolamento transacional do PostgreSQL é o objeto do teste, e um
 banco em memória não o reproduz.
+
+<sub>Por módulo: booking-service 143 · event-service 82 · auth-service 43 · shared-security 42 ·
+api-gateway 37 · notification-service 8 · payment-simulator 7.</sub>
 
 | Teste | O que prova |
 |---|---|
@@ -667,18 +713,34 @@ Para continuar vendo os traces de um serviço rodando assim, suba o Jaeger junto
 
 ## Documentação
 
+### As três decisões que moldaram o resto
+
+[**`docs/adr/`**](docs/adr/) — cada uma com o problema, as alternativas **descartadas** e o custo
+que ficou:
+
+| | | o custo aceito |
+|---|---|---|
+| [0001](docs/adr/0001-garantia-contra-overselling.md) | A garantia contra overselling mora no banco, não no lock | A contenção vai para o PostgreSQL |
+| [0002](docs/adr/0002-sincrono-e-assincrono-entre-servicos.md) | Síncrono onde a resposta depende, assíncrono onde não depende | A outbox entrega pelo menos uma vez, não exatamente uma |
+| [0003](docs/adr/0003-jwt-em-vez-de-sessao.md) | JWT com refresh rotativo, em vez de sessão no servidor | Logout não é imediato; HS256 deixa quem valida também emitir |
+
+### O diário
+
 [**`docs/00-mapeamento.md`**](docs/00-mapeamento.md) — escrito **antes** da primeira linha de
 código de negócio, e atualizado a cada fase:
 
 - Modelo de dados, tabela por tabela, com a razão de cada constraint
 - Contratos de API e a tabela de rotas do gateway
 - O fluxo da reserva passo a passo, do clique ao commit
-- **76 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
-  depois, ao subir em Kubernetes ou ao olhar o painel durante uma queda de verdade
-- **90 decisões registradas**, cada uma com a justificativa e a alternativa recusada
+- **106 riscos técnicos**, cada um com o que se fez a respeito — incluindo os que só apareceram
+  depois, ao subir em Kubernetes, ao olhar o painel durante uma queda de verdade, ou ao medir
+  uma otimização e descobrir que ela piorava o número
+- **155 decisões registradas**, cada uma com a justificativa e a alternativa recusada
 
-Cada uma das catorze fases virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que
-assim, e não de outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)
+Os ADRs não substituem as linhas correspondentes do mapeamento — eles as desenvolvem.
+
+Cada fase virou um Pull Request com o seu checkpoint. Se a dúvida for *"por que assim, e não de
+outro jeito?"*, o [histórico de PRs](https://github.com/devBandeiraa/ticket-platform/pulls?q=is%3Apr+is%3Aclosed)
 tem a resposta por etapa — inclusive as decisões que foram revistas no meio do caminho.
 
 ---
