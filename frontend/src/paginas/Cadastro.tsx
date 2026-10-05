@@ -82,7 +82,7 @@ export function Cadastro() {
       </Cartao>
 
       <p className="mt-4 text-center text-sm text-suave">
-        Ja tem conta?{' '}
+        Já tem conta?{' '}
         <Link to="/login" className="text-marca hover:underline">
           Entrar
         </Link>

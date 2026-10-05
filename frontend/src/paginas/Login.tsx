@@ -65,7 +65,7 @@ export function Login() {
       </Cartao>
 
       <p className="mt-4 text-center text-sm text-suave">
-        Ainda nao tem conta?{' '}
+        Ainda não tem conta?{' '}
         <Link to="/cadastro" className="text-marca hover:underline">
           Criar agora
         </Link>

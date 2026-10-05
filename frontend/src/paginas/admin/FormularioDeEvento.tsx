@@ -213,7 +213,7 @@ export function FormularioDeEvento() {
               />
             ) : (
               <p className="mt-1 text-xs text-suave">
-                Sem capa, o catalogo desenha um fundo a partir do nome do evento.
+                Sem capa, o catálogo desenha um fundo a partir do nome do evento.
               </p>
             )}
           </div>
@@ -243,7 +243,7 @@ export function FormularioDeEvento() {
                     />
                   </div>
                   <Campo
-                    rotulo="Preco"
+                    rotulo="Preço"
                     type="number"
                     min={0}
                     step="0.01"
@@ -318,7 +318,7 @@ export function FormularioDeEvento() {
 
           <div className="flex gap-2">
             <Botao type="submit" disabled={salvamento.isPending}>
-              {salvamento.isPending ? 'Salvando...' : 'Salvar'}
+              {salvamento.isPending ? 'Salvando…' : 'Salvar'}
             </Botao>
             <Botao type="button" variante="neutro" onClick={() => navegar('/admin/eventos')}>
               Cancelar

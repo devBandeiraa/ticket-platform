@@ -39,7 +39,7 @@ describe('MapaDeAssentos', () => {
 
     // Sem isto, o leitor de tela anunciaria apenas "1" e "2" — a numeracao visivel dentro do
     // botao —, sem dizer de que fila, a que preco, nem se da para escolher.
-    expect(screen.getByRole('gridcell', { name: /Plateia, fila A, lugar 1, .* disponivel/ }))
+    expect(screen.getByRole('gridcell', { name: /Plateia, fila A, lugar 1, .* disponível/ }))
       .toBeInTheDocument()
     expect(screen.getByRole('gridcell', { name: /lugar 2, .* vendido/ })).toBeInTheDocument()
   })
@@ -56,7 +56,7 @@ describe('MapaDeAssentos', () => {
     const lugar = screen.getByRole('gridcell', { name: /lugar 1/ })
     expect(lugar).toHaveAttribute('aria-pressed', 'true')
     // A cor nao e o unico sinal: o estado tambem chega a quem nao a enxerga.
-    expect(lugar).toHaveAccessibleName(/selecionado por voce/)
+    expect(lugar).toHaveAccessibleName(/selecionado por você/)
   })
 
   it('desabilita o lugar ocupado, em vez de so pinta-lo diferente', () => {

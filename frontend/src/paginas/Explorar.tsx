@@ -96,7 +96,7 @@ export function Explorar() {
           aria-label="Buscar eventos, artistas ou locais"
           value={digitando}
           onChange={(e) => setDigitando(e.target.value)}
-          placeholder="Busque por eventos, artistas ou locais..."
+          placeholder="Busque por eventos, artistas ou locais…"
           className="min-w-0 flex-1 rounded-cartao border border-borda-forte bg-superficie px-4 py-2.5 text-sm outline-none transition-colors focus:border-marca"
         />
         <button className="shrink-0 rounded-cartao bg-marca px-5 py-2.5 text-sm font-medium text-superficie transition-colors hover:bg-marca-forte">

@@ -98,7 +98,7 @@ export function MeusIngressos() {
         {consulta.data &&
           (reservas.length === 0 ? (
             <Vazio>
-              Voce ainda nao comprou nada.{' '}
+              Você ainda não comprou nada.{' '}
               <Link to="/explorar" className="text-marca hover:underline">
                 Ver eventos
               </Link>

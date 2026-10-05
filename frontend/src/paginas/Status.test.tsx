@@ -58,7 +58,7 @@ describe('pagina de status', () => {
 
     renderizar()
 
-    expect(await screen.findByText('Todos os 2 servicos no ar')).toBeDefined()
+    expect(await screen.findByText('Todos os 2 serviços no ar')).toBeDefined()
     expect(screen.getByText('12.5 ms')).toBeDefined()
     // 3601 segundos: uma hora e um minuto. So as duas maiores unidades aparecem.
     expect(screen.getByText('1h 0min')).toBeDefined()
@@ -76,7 +76,7 @@ describe('pagina de status', () => {
 
     renderizar()
 
-    expect(await screen.findByText('1 de 2 servicos fora do ar')).toBeDefined()
+    expect(await screen.findByText('1 de 2 serviços fora do ar')).toBeDefined()
     // O texto ao lado do ponto colorido: quem nao distingue verde de vermelho precisa ler.
     expect(screen.getByText('fora')).toBeDefined()
   })
@@ -99,7 +99,7 @@ describe('pagina de status', () => {
 
     // Este e o teste que justifica o nulo atravessar a API inteira sem virar zero no caminho.
     // "0.0 ms" leria como "responde instantaneamente", que e o oposto de "nao respondeu nada".
-    expect(await screen.findByText('sem trafego')).toBeDefined()
+    expect(await screen.findByText('sem tráfego')).toBeDefined()
     expect(screen.queryByText('0.0 ms')).toBeNull()
   })
 
@@ -128,7 +128,7 @@ describe('pagina de status', () => {
     // A frase importa mais que o estado tecnico: sem ela, quem le conclui que os seis servicos
     // cairam quando o que caiu foi o painel.
     await waitFor(() => {
-      expect(screen.getByText(/nao que os servicos estejam/i)).toBeDefined()
+      expect(screen.getByText(/não que os serviços estejam/i)).toBeDefined()
     })
   })
 })

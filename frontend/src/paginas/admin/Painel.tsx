@@ -82,7 +82,7 @@ export function Painel() {
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicador rotulo="Ingressos vendidos" valor={m.ingressosVendidos} />
         <Indicador
-          rotulo="Conversao"
+          rotulo="Conversão"
           valor={`${m.conversao}%`}
           detalhe={`${m.reservasConfirmadas} de ${m.reservasCriadas} reservas`}
         />
@@ -92,7 +92,7 @@ export function Painel() {
           detalhe="no catalogo"
         />
         <Indicador
-          rotulo="Lugares disponiveis"
+          rotulo="Lugares disponíveis"
           valor={m.lugaresDisponiveis}
           // A imprecisao esta no proprio cartao, e nao so na documentacao: um numero menor que
           // a soma das casas publicadas parece defeito quando nao e.
@@ -103,8 +103,8 @@ export function Painel() {
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Reservas por desfecho</h2>
         <p className="mt-1 text-sm text-suave">
-          Expiracao e cancelamento sao contados separados: uma mede desistencia por inercia, a
-          outra deliberada. Somadas, escondem a diferenca que diria se o prazo esta curto demais.
+          Expiração e cancelamento são contados separados: uma mede desistência por inércia, a
+          outra deliberada. Somadas, escondem a diferença que diria se o prazo está curto demais.
         </p>
 
         <dl className="mt-5 grid gap-4 sm:grid-cols-4">
@@ -116,11 +116,11 @@ export function Painel() {
       </section>
 
       <p className="mt-10 text-xs text-suave">
-        Estes numeros vem do banco. Latencia, disponibilidade e circuitos vivem em{' '}
+        Estes números vêm do banco. Latência, disponibilidade e circuitos vivem em{' '}
         <Link to="/status" className="text-marca hover:underline">
           status
         </Link>
-        , que le o Prometheus — sao perguntas diferentes.
+        , que lê o Prometheus — são perguntas diferentes.
       </p>
     </Secao>
   )

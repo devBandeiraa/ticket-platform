@@ -50,9 +50,9 @@ function classesDoAssento(
 
 function descrever(assento: AssentoDoMapa, selecionado: boolean, vip: boolean): string {
   const situacao = selecionado
-    ? 'selecionado por voce'
+    ? 'selecionado por você'
     : assento.status === 'FREE'
-      ? 'disponivel'
+      ? 'disponível'
       : assento.status === 'SOLD'
         ? 'vendido'
         : 'reservado por outra pessoa'

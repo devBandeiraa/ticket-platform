@@ -34,8 +34,8 @@ const ETAPAS = ['Ingressos', 'Dados', 'Pagamento', 'Confirmacao'] as const
 type Etapa = 0 | 1 | 2 | 3
 
 const FORMAS: { valor: FormaDePagamento; rotulo: string; detalhe: string }[] = [
-  { valor: 'CARD', rotulo: 'Cartao', detalhe: 'Aprovacao imediata' },
-  { valor: 'PIX', rotulo: 'Pix', detalhe: 'Aprovacao imediata' },
+  { valor: 'CARD', rotulo: 'Cartão', detalhe: 'Aprovação imediata' },
+  { valor: 'PIX', rotulo: 'Pix', detalhe: 'Aprovação imediata' },
 ]
 
 function Indicador({ atual }: { atual: Etapa }) {
@@ -104,7 +104,7 @@ function Resumo({
         <Valor rotulo="Subtotal" valor={reserva.subtotal} />
         {/* A taxa aparece SEMPRE, mesmo zerada. Escondendo quando e zero, o comprador que ve
             uma linha a mais no mes seguinte nao teria como saber quando ela passou a existir. */}
-        <Valor rotulo="Taxa de servico" valor={reserva.fee} />
+        <Valor rotulo="Taxa de serviço" valor={reserva.fee} />
         <div className="flex items-baseline justify-between gap-2 border-t border-borda pt-2 text-base">
           <dt className="font-medium">Total</dt>
           <dd className="numerico font-semibold text-marca">{dinheiro(reserva.totalPrice)}</dd>
@@ -113,7 +113,7 @@ function Resumo({
 
       {reserva.status === 'PENDING' && reserva.expiresAt && (
         <p className="mt-4 rounded-cartao bg-alerta/10 px-3 py-2 text-xs text-alerta">
-          Os lugares estao segurados. Expira em{' '}
+          Os lugares estão segurados. Expira em{' '}
           {/* Ao zerar, recarrega: quem decide o status final e o backend, nao este relogio. */}
           <ContagemRegressiva expiraEm={reserva.expiresAt} aoExpirar={aoExpirar} />
         </p>
@@ -231,8 +231,8 @@ export function Checkout() {
             <section>
               <h1 className="text-2xl font-semibold">Quem vai receber</h1>
               <p className="mt-2 text-suave">
-                Estes dados vao impressos no ingresso. Confira antes de pagar — depois o codigo
-                ja foi emitido.
+                Estes dados vão impressos no ingresso. Confira antes de pagar — depois o código
+                já foi emitido.
               </p>
 
               <dl className="mt-6 space-y-4 rounded-cartao border border-borda p-5">
@@ -308,7 +308,7 @@ export function Checkout() {
                   Voltar
                 </Botao>
                 <Botao disabled={pagamento.isPending} onClick={() => pagamento.mutate()}>
-                  {pagamento.isPending ? 'Processando...' : 'Finalizar compra'}
+                  {pagamento.isPending ? 'Processando…' : 'Finalizar compra'}
                 </Botao>
               </div>
 
@@ -324,13 +324,13 @@ export function Checkout() {
             <section>
               <h1 className="text-2xl font-semibold text-ok">Ingresso confirmado!</h1>
               <p className="mt-2 text-suave">
-                O pagamento foi aprovado e os lugares sao seus.
+                O pagamento foi aprovado e os lugares são seus.
               </p>
 
               {dados.ticketCode && (
                 <p className="numerico mt-6 rounded-cartao border border-borda bg-superficie px-4 py-3 text-sm">
                   <span className="block text-xs uppercase tracking-wide text-suave">
-                    Numero do ingresso
+                    Número do ingresso
                   </span>
                   <span className="mt-1 block text-lg font-semibold tracking-wider">
                     {dados.ticketCode}
