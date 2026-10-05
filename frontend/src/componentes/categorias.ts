@@ -15,11 +15,13 @@ import type { CategoriaDoEvento } from '../api/tipos'
  * traduzir uma delas diferente para a mesma categoria aparecer com dois nomes.
  */
 export const ROTULOS_DE_CATEGORIA: Record<CategoriaDoEvento, string> = {
+  MUSICA: 'Música',
   SHOWS: 'Shows',
   FESTIVAIS: 'Festivais',
   ESPORTES: 'Esportes',
   TECNOLOGIA: 'Tecnologia',
   TEATRO: 'Teatro',
+  CINEMA: 'Cinema',
   FESTAS: 'Festas',
 }
 

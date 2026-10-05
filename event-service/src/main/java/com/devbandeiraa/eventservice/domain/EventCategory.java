@@ -9,11 +9,21 @@ package com.devbandeiraa.eventservice.domain;
  * <p>Persistido como texto, e nao pelo ordinal, pela mesma razao de {@link EventStatus}: inserir
  * uma categoria no meio do enum nao pode reescrever o significado das linhas ja gravadas.
  *
- * <p>As seis sao fechadas de proposito. Categoria livre viraria, em poucos meses, "Show", "show",
- * "Shows" e "Musica" convivendo — e ai o filtro do catalogo deixa de filtrar. Quando uma setima
+ * <p>As oito sao fechadas de proposito. Categoria livre viraria, em poucos meses, "Show", "show",
+ * "Shows" e "Musica" convivendo — e ai o filtro do catalogo deixa de filtrar. Quando uma nona
  * fizer falta, ela entra aqui e no CHECK da migration, que e onde se enxerga o conjunto inteiro.
  */
 public enum EventCategory {
+
+    /**
+     * Musica ao vivo em casa fechada: recital, roda, sessao de jazz.
+     *
+     * <p>Convive com {@link #SHOWS} em vez de substitui-lo, e a distincao nao e cosmetica. SHOWS
+     * descreve a apresentacao de um artista que o publico vai ver POR SER ele; MUSICA descreve o
+     * encontro em que o programa importa mais do que o nome no cartaz. Quem procura "o que fazer
+     * no sabado" usa a segunda; quem procura um artista usa a primeira.
+     */
+    MUSICA,
 
     /** Apresentacao musical de um artista ou grupo, em casa fechada. */
     SHOWS,
@@ -28,6 +38,9 @@ public enum EventCategory {
 
     /** Teatro, danca, stand-up e demais artes cenicas. */
     TEATRO,
+
+    /** Sessao de cinema, mostra, cineclube. */
+    CINEMA,
 
     FESTAS
 }
