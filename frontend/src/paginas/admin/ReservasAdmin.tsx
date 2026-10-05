@@ -52,7 +52,7 @@ export function ReservasAdmin() {
               <div className="flex flex-wrap gap-8">
                 <Numero rotulo="capacidade" valor={estoque.data.total} />
                 <Numero rotulo="reservados" valor={estoque.data.reserved} />
-                <Numero rotulo="disponiveis" valor={estoque.data.available} destaque />
+                <Numero rotulo="disponíveis" valor={estoque.data.available} destaque />
               </div>
             </Cartao>
           )}

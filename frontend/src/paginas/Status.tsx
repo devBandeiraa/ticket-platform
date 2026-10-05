@@ -73,15 +73,15 @@ export function Status() {
         <header>
           <h1 className="text-2xl font-semibold">Status da plataforma</h1>
           <p className="mt-2 max-w-2xl text-sm text-suave">
-            Os numeros vem do Prometheus, que coleta cada servico a cada dez segundos. Esta pagina
-            pergunta ao gateway a cada cinco.
+            Os números vêm do Prometheus, que coleta cada serviço a cada dez segundos. Esta
+            página pergunta ao gateway a cada cinco.
           </p>
         </header>
 
         <Resumo total={servicos.length} fora={fora.length} coletadoEm={coletadoEm} />
 
         <section>
-          <h2 className="mb-3 text-sm tracking-wide text-suave uppercase">Servicos</h2>
+          <h2 className="mb-3 text-sm tracking-wide text-suave uppercase">Serviços</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {servicos.map((servico) => (
               <CartaoDeServico key={servico.nome} servico={servico} />
@@ -94,7 +94,7 @@ export function Status() {
           {circuitos.length === 0 ? (
             <p className="text-sm text-suave">
               Nenhum circuito registrado ainda. Eles aparecem depois da primeira chamada entre
-              servicos.
+              serviços.
             </p>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
@@ -136,13 +136,13 @@ function Resumo({
       />
       <span className="font-medium">
         {tudoNoAr
-          ? `Todos os ${total} servicos no ar`
-          : `${fora} de ${total} servicos fora do ar`}
+          ? `Todos os ${total} serviços no ar`
+          : `${fora} de ${total} serviços fora do ar`}
       </span>
       {/* O horario da coleta e o que mostra que a pagina continua viva quando nenhum numero muda.
           Sem ele, uma plataforma estavel e uma pagina congelada sao indistinguiveis. */}
       <span className="numerico ml-auto text-xs text-suave">
-        coletado as {new Date(coletadoEm).toLocaleTimeString('pt-BR')}
+        coletado às {new Date(coletadoEm).toLocaleTimeString('pt-BR')}
       </span>
     </Cartao>
   )
@@ -158,19 +158,19 @@ function CartaoDeServico({ servico }: { servico: ServicoNoStatus }) {
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>
-          <dt className="text-xs text-suave">Latencia media</dt>
+          <dt className="text-xs text-suave">Latência média</dt>
           <dd className="numerico mt-0.5 tabular-nums">
             {/* Tres coisas diferentes, tres exibicoes diferentes: um numero, "sem trafego" e o
                 traco de quem esta fora. Colapsar em "0 ms" seria a unica saida errada. */}
             {servico.latenciaMediaMs === null ? (
-              <span className="text-suave">sem trafego</span>
+              <span className="text-suave">sem tráfego</span>
             ) : (
               `${servico.latenciaMediaMs.toFixed(1)} ms`
             )}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-suave">No ar ha</dt>
+          <dt className="text-xs text-suave">No ar há</dt>
           <dd className="numerico mt-0.5 tabular-nums">
             {servico.uptimeSegundos === null ? (
               <span className="text-suave">—</span>
@@ -205,19 +205,20 @@ const APARENCIA_DO_CIRCUITO: Record<
 > = {
   FECHADO: {
     rotulo: 'fechado',
-    explicacao: 'As chamadas estao passando normalmente.',
+    explicacao: 'As chamadas estão passando normalmente.',
     classe: 'border-ok/40',
     ponto: 'bg-ok',
   },
   MEIO_ABERTO: {
     rotulo: 'meio aberto',
-    explicacao: 'Deixando passar algumas chamadas para descobrir se o servico voltou.',
+    explicacao: 'Deixando passar algumas chamadas para descobrir se o serviço voltou.',
     classe: 'border-alerta/40 bg-alerta/5',
     ponto: 'bg-alerta',
   },
   ABERTO: {
     rotulo: 'aberto',
-    explicacao: 'As chamadas estao sendo recusadas sem sair pelo fio, para nao insistir contra um servico que ja demonstrou estar fora.',
+    explicacao:
+      'As chamadas estão sendo recusadas sem sair pelo fio, para não insistir contra um serviço que já demonstrou estar fora.',
     classe: 'border-erro/40 bg-erro/5',
     ponto: 'bg-erro',
   },
@@ -253,7 +254,7 @@ function ErroDeColeta({ erro }: { erro: unknown }) {
       {/* A distincao vale ser dita em voz alta: a pagina perdeu a fonte de metricas, o que nao
           significa que a plataforma caiu. Sem isto, quem le conclui o pior. */}
       <p className="text-sm text-suave">
-        Isto significa que o painel nao conseguiu ler as metricas — nao que os servicos estejam
+        Isto significa que o painel não conseguiu ler as métricas — não que os serviços estejam
         fora. Confira se o Prometheus subiu junto com o resto.
       </p>
     </div>

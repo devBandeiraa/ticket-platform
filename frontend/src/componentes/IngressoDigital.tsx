@@ -126,7 +126,7 @@ export function DialogoDoIngresso({
 
         {reserva.ticketCode && (
           <p className="numerico mt-3 text-center text-xs text-suave">
-            Apresente o QR ou informe o codigo {reserva.ticketCode}
+            Apresente o QR ou informe o código {reserva.ticketCode}
           </p>
         )}
       </div>

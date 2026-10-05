@@ -64,26 +64,26 @@ export function Vazio({ children }: { children: ReactNode }) {
  * mudar sem quebrar logica alguma.
  */
 const MENSAGENS: Record<string, string> = {
-  SOLD_OUT: 'Os ingressos acabaram enquanto voce decidia.',
+  SOLD_OUT: 'Os ingressos acabaram enquanto você decidia.',
   // Distinto de SOLD_OUT de proposito: aqui escolher outro lugar resolve, e o conselho
   // que a tela da precisa ser diferente.
-  SEATS_TAKEN: 'Alguem levou um dos lugares que voce escolheu. O mapa foi atualizado.',
+  SEATS_TAKEN: 'Alguém levou um dos lugares que você escolheu. O mapa foi atualizado.',
   LOCK_TIMEOUT: 'Muita gente reservando este evento agora. Tente de novo em instantes.',
   BOOKING_EXPIRED: 'O prazo de pagamento desta reserva venceu.',
-  BOOKING_CANCELLED: 'Esta reserva ja foi cancelada.',
-  BOOKING_ALREADY_CONFIRMED: 'Esta reserva ja esta paga.',
-  EVENT_NOT_AVAILABLE: 'Este evento nao esta disponivel para venda.',
-  EVENT_NOT_PUBLISHED: 'Este evento ainda nao foi publicado.',
+  BOOKING_CANCELLED: 'Esta reserva já foi cancelada.',
+  BOOKING_ALREADY_CONFIRMED: 'Esta reserva já está paga.',
+  EVENT_NOT_AVAILABLE: 'Este evento não está disponível para venda.',
+  EVENT_NOT_PUBLISHED: 'Este evento ainda não foi publicado.',
   INVALID_CREDENTIALS: 'E-mail ou senha incorretos.',
-  EMAIL_ALREADY_REGISTERED: 'Ja existe uma conta com este e-mail.',
+  EMAIL_ALREADY_REGISTERED: 'Já existe uma conta com este e-mail.',
   RATE_LIMIT_EXCEEDED: 'Muitas tentativas seguidas. Aguarde alguns instantes.',
-  INVALID_TOKEN: 'Sua sessao expirou. Entre novamente.',
-  SESSION_EXPIRED: 'Sua sessao expirou. Entre novamente.',
+  INVALID_TOKEN: 'Sua sessão expirou. Entre novamente.',
+  SESSION_EXPIRED: 'Sua sessão expirou. Entre novamente.',
   VALIDATION_ERROR: 'Confira os campos destacados.',
-  FORBIDDEN: 'Voce nao tem permissao para isso.',
+  FORBIDDEN: 'Você não tem permissão para isso.',
   // Perder a fonte de metricas nao e a plataforma cair. O texto evita a leitura mais alarmante,
   // que seria justamente a errada.
-  METRICS_UNAVAILABLE: 'Nao foi possivel ler as metricas da plataforma.',
+  METRICS_UNAVAILABLE: 'Não foi possível ler as métricas da plataforma.',
 }
 
 export function mensagemDe(erro: unknown): string {
@@ -91,7 +91,7 @@ export function mensagemDe(erro: unknown): string {
     return MENSAGENS[erro.codigo] ?? erro.message
   }
   // Sem resposta alguma: gateway fora do ar, rede caida, CORS barrando.
-  return 'Nao foi possivel falar com o servidor. Verifique se a plataforma esta no ar.'
+  return 'Não foi possível falar com o servidor. Verifique se a plataforma está no ar.'
 }
 
 export function Erro({ erro }: { erro: unknown }) {
@@ -103,7 +103,7 @@ export function Erro({ erro }: { erro: unknown }) {
       {traceId && (
         // Mostrado de proposito: e o que liga a tela do usuario a linha exata no log.
         <p className="mt-1 text-xs text-suave">
-          Codigo de rastreio: <span className="numerico">{traceId}</span>
+          Código de rastreio: <span className="numerico">{traceId}</span>
         </p>
       )}
     </div>

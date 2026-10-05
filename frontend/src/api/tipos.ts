@@ -22,11 +22,13 @@ export type StatusDoEvento = 'DRAFT' | 'PUBLISHED' | 'CANCELLED'
  * servidor devolve 400 na desserializacao.
  */
 export type CategoriaDoEvento =
+  | 'MUSICA'
   | 'SHOWS'
   | 'FESTIVAIS'
   | 'ESPORTES'
   | 'TECNOLOGIA'
   | 'TEATRO'
+  | 'CINEMA'
   | 'FESTAS'
 
 /** Faixa de um setor. Nao e derivada do preco: o setor mais caro nem sempre e o VIP. */

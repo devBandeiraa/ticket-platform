@@ -39,8 +39,8 @@ export function EventosAdmin() {
         <div>
           <h1 className="text-2xl font-semibold">Gerenciar eventos</h1>
           <p className="mt-1 text-sm text-suave">
-            Um evento nasce como rascunho e so entra no catalogo por um ato deliberado de
-            publicacao.
+            Um evento nasce como rascunho e só entra no catálogo por um ato deliberado de
+            publicação.
           </p>
         </div>
         <Link

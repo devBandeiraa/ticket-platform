@@ -113,7 +113,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '12 days' + INTERVAL '24 hours',
         800, 120.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1503095396549-807759245b35?w=1200&h=675&fit=crop&q=80',
-        'SHOWS',
+        'MUSICA',
         '00000000-0000-0000-0000-000000000001'
     ),
     (
@@ -160,7 +160,7 @@ VALUES
         date_trunc('day', NOW()) + INTERVAL '17 days' + INTERVAL '23 hours',
         50, 95.00, 'PUBLISHED',
         'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=675&fit=crop&q=80',
-        'SHOWS',
+        'MUSICA',
         '00000000-0000-0000-0000-000000000001'
     ),
     -- Rascunho: existe no banco e NAO pode aparecer no catalogo publico.
@@ -185,6 +185,47 @@ VALUES
         800, 150.00, 'CANCELLED',
         'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?w=1200&h=675&fit=crop&q=80',
         'SHOWS',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    -- ------------------------------------------------------------------------
+    --  Os dois do fim de semana
+    --
+    --  Diferente dos demais, a data destes nao e "daqui a N dias": e a PROXIMA
+    --  SEXTA. Com deslocamento fixo, o dia da semana em que o evento cai depende
+    --  de quando o seed rodou, e a agenda de fim de semana da home — que agrupa
+    --  sexta a domingo — nascia vazia na maioria das execucoes. Ancorando na
+    --  sexta, ela tem conteudo sempre.
+    --
+    --  `(5 - DOW + 7) % 7` e a distancia ate a proxima sexta, e vale zero quando
+    --  hoje JA e sexta: o evento e as 22h, entao o dia ainda nao passou.
+    --
+    --  As horas continuam em UTC, que e o fuso do container. 25h sobre a meia-noite
+    --  de sexta sao 22h de sexta em Brasilia; 1 dia + 21h30 sao 18h30 de sabado.
+    -- ------------------------------------------------------------------------
+    (
+        '10000000-0000-0000-0000-00000000000c',
+        'Depois das dez: baile no Galpao',
+        'Gafieira com baile aberto e orquestra de dez musicos. Mesas de quatro, por ordem de chegada ao setor.',
+        'Galpao 08, Saude, Rio de Janeiro',
+        date_trunc('day', NOW())
+            + (((5 - EXTRACT(DOW FROM NOW())::int + 7) % 7) || ' days')::interval
+            + INTERVAL '25 hours',
+        120, 60.00, 'PUBLISHED',
+        'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200&h=675&fit=crop&q=80',
+        'FESTAS',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '10000000-0000-0000-0000-00000000000d',
+        'Cinema no terraco: cidade em cena',
+        'Mostra de curtas cariocas ao ar livre, com conversa com os diretores depois da ultima sessao.',
+        'Terraco Aurora, Santa Teresa, Rio de Janeiro',
+        date_trunc('day', NOW())
+            + (((5 - EXTRACT(DOW FROM NOW())::int + 7) % 7) || ' days')::interval
+            + INTERVAL '1 days' + INTERVAL '21 hours 30 minutes',
+        40, 25.00, 'PUBLISHED',
+        'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&h=675&fit=crop&q=80',
+        'CINEMA',
         '00000000-0000-0000-0000-000000000001'
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -219,7 +260,8 @@ DELETE FROM sectors WHERE event_id IN (
     '10000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000006',
     '10000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000008',
     '10000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-00000000000a',
-    '10000000-0000-0000-0000-00000000000b'
+    '10000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-00000000000c',
+    '10000000-0000-0000-0000-00000000000d'
 );
 
 INSERT INTO sectors (
@@ -296,4 +338,15 @@ VALUES
 
     -- Noite Rubra: 800
     (gen_random_uuid(), '10000000-0000-0000-0000-00000000000b', 'Plateia', 150.00, 40, 20, 0,
-     NULL, NULL, 'STANDARD');
+     NULL, NULL, 'STANDARD'),
+
+    -- Baile no Galpao: 120
+    --
+    -- Mesa, e nao pista: o dominio modela assento marcado, e um baile de gafieira e justamente
+    -- o tipo de festa em que a mesa E o lugar. Ver a nota do topo deste arquivo.
+    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000c', 'Mesas', 60.00, 12, 10, 0,
+     'Mesas de quatro em volta da pista, numeradas por fila.', NULL, 'STANDARD'),
+
+    -- Cinema no terraco: 40
+    (gen_random_uuid(), '10000000-0000-0000-0000-00000000000d', 'Terraco', 25.00, 5, 8, 0,
+     'Cadeiras ao ar livre, de frente para a tela e para a cidade.', NULL, 'STANDARD');

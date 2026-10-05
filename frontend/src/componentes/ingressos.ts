@@ -20,7 +20,7 @@ import type { EventoResumo, Reserva } from '../api/tipos'
 export type Aba = 'proximos' | 'utilizados' | 'cancelados'
 
 export const ROTULOS_DE_ABA: Record<Aba, string> = {
-  proximos: 'Proximos',
+  proximos: 'Próximos',
   utilizados: 'Utilizados',
   cancelados: 'Cancelados',
 }

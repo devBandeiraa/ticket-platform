@@ -112,10 +112,10 @@ export function DemoConcorrencia() {
     <FaixaNoite comCeu className="min-h-screen">
       <Secao>
         <div className="text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">Teste de concorrencia</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Teste de concorrência</h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-pretty text-suave">
-            Dispara varias reservas ao mesmo tempo contra o mesmo evento. A garantia de que nunca
-            se vende mais que a capacidade nao vem do lock distribuido — ele e otimizacao — e sim
+            Dispara várias reservas ao mesmo tempo contra o mesmo evento. A garantia de que nunca
+            se vende mais que a capacidade não vem do lock distribuído — ele é otimização — e sim
             de um <code className="rounded bg-superficie px-1 text-texto">UPDATE</code> condicional
             com <code className="rounded bg-superficie px-1 text-texto">CHECK constraint</code> no
             PostgreSQL. Quem perde a corrida recebe{' '}
@@ -162,7 +162,7 @@ export function DemoConcorrencia() {
                         setResultado(null)
                       }}
                     >
-                      <option value="">selecione...</option>
+                      <option value="">selecione…</option>
                       {eventos.data.content.map((evento) => (
                         <option key={evento.id} value={evento.id}>
                           {evento.name} ({evento.totalTickets} ingressos)
@@ -172,7 +172,7 @@ export function DemoConcorrencia() {
 
                     <label className="block">
                       <span className="mb-1.5 flex items-baseline justify-between text-sm text-suave">
-                        Reservas simultaneas
+                        Reservas simultâneas
                         <span className="numerico text-2xl font-semibold text-marca">{quantas}</span>
                       </span>
                       <input
@@ -184,8 +184,8 @@ export function DemoConcorrencia() {
                         className="w-full accent-[var(--color-marca)]"
                       />
                       <span className="mt-1.5 block text-xs text-suave">
-                        Acima de 40 o rate limiter do gateway comeca a recusar antes de a
-                        requisicao chegar ao booking-service — a rajada configurada e de 40.
+                        Acima de 40 o rate limiter do gateway começa a recusar antes de a
+                        requisição chegar ao booking-service — a rajada configurada é de 40.
                       </span>
                     </label>
 
@@ -194,7 +194,7 @@ export function DemoConcorrencia() {
                         <span className="text-suave">Estoque agora</span>
                         <span className="numerico">
                           <span className="font-semibold text-texto">{estoque.data.available}</span>
-                          <span className="text-suave"> de {estoque.data.total} disponiveis</span>
+                          <span className="text-suave"> de {estoque.data.total} disponíveis</span>
                         </span>
                       </div>
                     )}
@@ -203,10 +203,10 @@ export function DemoConcorrencia() {
                       {rodando ? (
                         <span className="inline-flex items-center gap-2">
                           <span className="size-4 animate-spin rounded-full border-2 border-papel/30 border-t-fundo" />
-                          Disparando {quantas} reservas...
+                          Disparando {quantas} reservas…
                         </span>
                       ) : (
-                        `Disparar ${quantas} reservas simultaneas`
+                        `Disparar ${quantas} reservas simultâneas`
                       )}
                     </Botao>
                   </>
@@ -236,7 +236,7 @@ export function DemoConcorrencia() {
                         <span className="numerico font-medium text-texto">
                           {resultado.disparadas}
                         </span>{' '}
-                        requisicoes simultaneas,{' '}
+                        requisições simultâneas,{' '}
                         <span className="numerico font-medium text-ok">
                           {estoque.data.reserved}
                         </span>{' '}
@@ -245,7 +245,7 @@ export function DemoConcorrencia() {
                         A invariante se manteve.
                       </>
                     ) : (
-                      'A invariante foi violada. Isto nao deveria acontecer.'
+                      'A invariante foi violada. Isto não deveria acontecer.'
                     )}
                   </p>
                 </Cartao>
@@ -305,9 +305,9 @@ export function DemoConcorrencia() {
 
                   {resultado.limiteExcedido > 0 && (
                     <p className="mt-5 rounded-lg border border-alerta/30 bg-alerta/10 px-3 py-2.5 text-xs text-alerta">
-                      Parte das requisicoes foi barrada pelo rate limiter antes de chegar ao
-                      booking-service. Reduza a quantidade para que o teste meca a concorrencia no
-                      estoque, e nao o limite da borda.
+                      Parte das requisições foi barrada pelo rate limiter antes de chegar ao
+                      booking-service. Reduza a quantidade para que o teste meça a concorrência no
+                      estoque, e não o limite da borda.
                     </p>
                   )}
 
@@ -319,7 +319,7 @@ export function DemoConcorrencia() {
                       onClick={limparRodada}
                     >
                       {limpando
-                        ? 'Cancelando...'
+                        ? 'Cancelando…'
                         : `Cancelar as ${resultado.reservasCriadas.length} reservas desta rodada`}
                     </Botao>
                   )}

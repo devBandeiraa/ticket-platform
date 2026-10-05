@@ -5,9 +5,9 @@ export function NaoEncontrada() {
   return (
     <Secao className="py-20 text-center">
       <p className="numerico text-5xl font-semibold text-suave">404</p>
-      <p className="mt-3 text-suave">Esta pagina nao existe.</p>
+      <p className="mt-3 text-suave">Esta página não existe.</p>
       <Link to="/" className="mt-6 inline-block text-marca hover:underline">
-        Voltar ao catalogo
+        Voltar ao catálogo
       </Link>
     </Secao>
   )

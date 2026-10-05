@@ -226,7 +226,7 @@ export function DetalheDoEvento() {
           )}
 
           <dl className="mt-8 grid gap-4 border-y border-borda py-6 sm:grid-cols-3">
-            <Informacao rotulo="Data e horario" valor={dataEHora(evento.data.eventDate)} />
+            <Informacao rotulo="Data e horário" valor={dataEHora(evento.data.eventDate)} />
             <Informacao rotulo="Local" valor={evento.data.venue} />
             <Informacao
               rotulo="Ingressos"
@@ -353,7 +353,7 @@ export function DetalheDoEvento() {
                 disabled={reserva.isPending || selecionados.length === 0}
                 onClick={() => reserva.mutate()}
               >
-                {reserva.isPending ? 'Reservando...' : 'Continuar'}
+                {reserva.isPending ? 'Reservando…' : 'Continuar'}
               </Botao>
 
               {reserva.isError && (
@@ -400,7 +400,7 @@ export function DetalheDoEvento() {
               disabled={reserva.isPending}
               onClick={() => reserva.mutate()}
             >
-              {reserva.isPending ? 'Reservando...' : 'Continuar'}
+              {reserva.isPending ? 'Reservando…' : 'Continuar'}
             </Botao>
           </div>
         </div>

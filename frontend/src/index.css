@@ -1,6 +1,24 @@
 @import 'tailwindcss';
 
 /*
+  Duas familias, dois trabalhos.
+
+  O design separa o texto que se LE do texto que se CONSULTA. Titulo, corpo e botao saem numa
+  geometrica de x-height alta; data, sobretitulo, contagem e etiqueta saem numa monoespacada com
+  entreletra aberta. Nao e enfeite: "18 OUT · DOM · 19H" e "6 EVENTOS · 4 JEITOS DE VIVER A
+  CIDADE" sao tabelas disfarcadas de frase, e a largura fixa alinha a coluna que o olho procura.
+
+  Auto-hospedadas por pacote, e nao pelo CDN do Google: a aplicacao roda em container sem
+  internet garantida, e uma fonte que depende da rede vira texto saltando de forma no primeiro
+  carregamento lento. As versoes variaveis trazem todos os pesos num arquivo so.
+
+  As duas sao aproximacoes das do Figma — o prototipo mostra o desenho das letras, nao o nome
+  dos arquivos. Trocar e mexer nestes dois imports e nos dois tokens abaixo.
+*/
+@import '@fontsource-variable/plus-jakarta-sans';
+@import '@fontsource-variable/jetbrains-mono';
+
+/*
   ============================================================================
    Identidade: papel claro, faixas de noite, tinta de cortina.
   ============================================================================
@@ -28,7 +46,9 @@
   no mesmo matiz, o contraste ENTRE as duas era 1.12:1 — indistinguiveis lado a
   lado.
 
-  A separacao possivel, respeitando 4.5:1 de cada uma sobre papel, e 2.04:1. E
+  A separacao possivel, respeitando 4.5:1 de cada uma sobre papel, e 1.95:1. Era
+  2.04:1 sobre o papel anterior, e encurtou porque o papel do design e mais escuro:
+  o erro teve de descer para continuar legivel, e descer o aproxima da marca. E
   pouco. Por isso o erro nao depende so da cor: aparece sempre com marcador de
   forma e texto, nunca como superficie preenchida, enquanto a marca preenche
   botao e quase nunca e texto pequeno. E o mesmo principio ja usado em
@@ -39,20 +59,33 @@
   numero ao lado deixa de valer e precisa ser recalculado, nao ajustado no olho.
 */
 @theme {
+  /* --- tipografia --- */
+
+  /* Interface e display. O `sans-serif` final nao e decoracao: ele e o que desenha a tela
+     enquanto o arquivo variavel ainda esta chegando. */
+  --font-display:
+    'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  /* Rotulo, data, contagem. Substitui a pilha monoespacada padrao do Tailwind. */
+  --font-mono:
+    'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
   /* --- areas claras --- */
 
-  /* Papel levemente quente. Branco puro no fundo inteiro cansa em tela grande. */
-  --color-papel: oklch(0.97 0.006 70);
+  /* Papel levemente quente — `#F4F1E9`, o fundo que o design especifica. Branco puro no
+     fundo inteiro cansa em tela grande. O valor fica em oklch, e nao no hex, para continuar na
+     mesma unidade do resto da paleta: assim clarear o papel e mexer num numero, e nao converter
+     de espaco de cor no meio da folha. */
+  --color-papel: oklch(0.9595 0.011 89);
   /* Cartao sobre o papel: quase branco, so o suficiente para destacar. */
   --color-superficie: oklch(0.995 0.002 70);
-  --color-texto: oklch(0.22 0.012 40); /* 15.91:1 sobre papel */
-  --color-suave: oklch(0.5 0.012 40); /*  5.52:1 sobre papel */
+  --color-texto: oklch(0.22 0.012 40); /* 15.44:1 sobre papel */
+  --color-suave: oklch(0.5 0.012 40); /*  5.36:1 sobre papel */
 
-  /* Divisoria decorativa. Fica em 1.28:1 de proposito — e um fio, nao um limite
+  /* Divisoria decorativa. Fica em 1.24:1 de proposito — e um fio, nao um limite
      de componente, e a WCAG 1.4.11 nao se aplica a ele. */
   --color-borda: oklch(0.89 0.006 70);
   /* Limite de componente: contorno de campo, de botao vazado, de assento.
-     3.62:1, acima dos 3:1 que a WCAG 1.4.11 exige para elemento nao textual. */
+     3.52:1, acima dos 3:1 que a WCAG 1.4.11 exige para elemento nao textual. */
   --color-borda-forte: oklch(0.6 0.01 60);
 
   /* Preenchimento do esqueleto de carregamento. Token proprio porque ele precisa
@@ -71,19 +104,53 @@
   --color-noite-borda-forte: oklch(0.49 0.015 30); /* 3.01:1 sobre noite */
   --color-noite-esqueleto: oklch(0.31 0.016 30); /* 1.26:1 sobre noite-superficie */
 
-  /* --- marca --- */
+/*
+    --------------------------------------------------------------------------
+     A marca: vermelhao
+    --------------------------------------------------------------------------
+    O design especifica `#E8482B`. O valor abaixo e `#D83F21` — um degrau mais
+    escuro — e a diferenca tem numero:
 
-  --color-marca: oklch(0.4 0.16 20); /*  9.18:1 sobre papel */
-  --color-marca-forte: oklch(0.33 0.14 20); /* hover; 12.60:1 com texto claro */
-  /* Sobre a faixa escura o vinho some. Esta e a mesma marca, clareada para
-     continuar visivel la — 7.13:1 sobre noite. */
-  --color-marca-clara: oklch(0.72 0.17 30);
+      #E8482B com texto branco ...... 3.89:1   (botao "Explorar eventos")
+      #E8482B sobre papel ........... 3.45:1   (texto pequeno laranja)
+
+    Os dois ficam abaixo dos 4.5:1 que esta folha verifica por script em todo
+    texto. `#D83F21` leva o texto do botao a 4.51:1 mantendo o preenchimento
+    reconhecivel como o mesmo vermelhao — a olho nu, lado a lado, a troca passa
+    despercebida; no medidor, nao.
+
+    Para o texto pequeno nem isso basta, e e por isso que `marca-forte` existe:
+    ela cobre o laranja que vira PALAVRA sobre papel — item ativo do menu,
+    "12 de 50 lugares disponiveis", "Ir para a central de ajuda".
+
+    --------------------------------------------------------------------------
+     O que a troca fez com a colisao marca/erro
+    --------------------------------------------------------------------------
+    A nota la em cima descreve a disputa entre a marca e o vermelho de erro. Com
+    o vinho, as duas brigavam por serem o MESMO matiz. O vermelhao nao resolve a
+    disputa de luminancia — marca e erro ficam agora em 1.14:1, mais perto do que
+    os 1.95:1 de antes — mas afasta o matiz de 10 para 33 graus, que e a distancia
+    que o olho de fato usa aqui.
+
+    A defesa continua sendo a mesma e nao depende de cor: erro aparece sempre com
+    marcador de forma e texto, nunca como superficie preenchida, enquanto a marca
+    preenche botao e quase nunca e texto pequeno.
+  */
+
+  --color-marca: oklch(0.59 0.195 33); /* #D83F21 — 4.51:1 com texto branco; 3.99:1 sobre papel */
+  /* Hover do botao, e o laranja que vira texto pequeno sobre papel. */
+  --color-marca-forte: oklch(0.56 0.195 33); /* #CE3413 — 4.53:1 sobre papel */
+  /* Sobre a faixa escura o vermelhao escurece demais. Esta e a mesma marca,
+     clareada para continuar visivel la — 6.57:1 sobre noite. */
+  --color-marca-clara: oklch(0.7 0.19 33);
 
   /* --- estados, nas duas familias --- */
 
-  --color-ok: oklch(0.52 0.13 155); /* 4.73:1 sobre papel */
-  --color-alerta: oklch(0.48 0.13 70); /* 6.14:1 sobre papel */
-  --color-erro: oklch(0.57 0.18 10); /* 4.50:1 sobre papel */
+  --color-ok: oklch(0.52 0.13 155); /* 4.59:1 sobre papel */
+  --color-alerta: oklch(0.48 0.13 70); /* 5.96:1 sobre papel */
+  /* Escurecido junto com a troca do papel. Mantido em `oklch(0.57 ...)`, o erro caia para
+     4.38:1 sobre o papel novo — a anotacao ao lado dizia 4.50:1 e passaria a mentir. */
+  --color-erro: oklch(0.56 0.18 10); /* 4.56:1 sobre papel */
 
   --color-ok-claro: oklch(0.76 0.15 155); /*  9.41:1 sobre noite */
   --color-alerta-claro: oklch(0.8 0.13 80); /* 10.05:1 sobre noite */
@@ -130,10 +197,40 @@
   }
 }
 
+/*
+  Rolagem suave para a navegacao de ancora.
+
+  O cabecalho da home aponta para secoes da propria pagina — agenda, como funciona, ajuda —, e
+  um salto seco entre elas desorienta: a pagina e longa e todas as secoes se parecem no inicio.
+  Com a rolagem, quem clica VE para onde foi.
+
+  Fica no `html`, e nao no `body`: o elemento que rola e o documento, e a propriedade so tem
+  efeito no contexto de rolagem. A regra de `prefers-reduced-motion` no fim da folha ja a
+  desliga para quem pediu menos movimento — por isso ela nao se repete aqui.
+*/
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--color-papel);
   color: var(--color-texto);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-display);
+}
+
+/*
+  Rotulo em versalete espacado — o tom de voz monoespacado do design.
+
+  Classe, e nao uma pilha de utilitarios repetida: ela aparece em toda secao da home, no rodape,
+  no cartao e na agenda, e sao QUATRO propriedades que precisam andar juntas. Uma copia que
+  esquecesse a entreletra ficaria com a aparencia de codigo em vez de etiqueta.
+*/
+.rotulo {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 /* Numeros que mudam sozinhos — contagem regressiva, contadores da demo — nao podem
